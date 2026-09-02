@@ -35,9 +35,7 @@ except Exception:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-def make_tau_provider(
-    base_url: str = "http://127.0.0.1:1234/v1", api_key: str = "lm-studio"
-):
+def make_tau_provider(base_url: str = "http://127.0.0.1:1234/v1", api_key: str = "lm-studio"):
     """Create an OpenAI-compatible Tau provider for LMStudio or any compatible endpoint."""
     if not _TAU_AVAILABLE:
         raise RuntimeError("tau-ai not installed — run `uv add tau-ai`")
@@ -76,12 +74,8 @@ def _tools_to_agent_tools(tools: Tools) -> list[AgentTool]:
                     result = tools.dispatch(_name, dict(arguments))
                     # Tau expects content list; details holds structured result for harness
                     text = json.dumps(result, default=str)
-                    return AgentToolResult(
-                        content=[TextContent(text=text)], details=result
-                    )
-                except (
-                    Exception
-                ) as e:  # tool is isolation boundary — return error result not raise
+                    return AgentToolResult(content=[TextContent(text=text)], details=result)
+                except Exception as e:  # tool is isolation boundary — return error result not raise
                     return AgentToolResult(
                         content=[TextContent(text=f"error: {e}")],
                         details={"error": str(e)},
@@ -143,9 +137,7 @@ async def _run_harness_turn(
     for msg in reversed(harness.messages):
         if isinstance(msg, AssistantMessage):
             # concatenate text contents
-            last_text = "".join(
-                c.text for c in msg.content if isinstance(c, TextContent)
-            )
+            last_text = "".join(c.text for c in msg.content if isinstance(c, TextContent))
             if last_text.strip():
                 break
     if not last_text.strip() and traces:
@@ -172,11 +164,7 @@ def run_tau_player_turn_sync(
 
     system = PLAYER_PROMPT + f"\nYou are {player_name} the {player_class}."
     # Provide turn context — be explicit to force tool calling (tau harness needs directive)
-    alive_monsters = [
-        f"{k} HP {v.hp}/{v.max_hp} at {state.get_pos(k)}"
-        for k, v in state.monsters.items()
-        if v.alive
-    ]
+    alive_monsters = [f"{k} HP {v.hp}/{v.max_hp} at {state.get_pos(k)}" for k, v in state.monsters.items() if v.alive]
     ctx = (
         f"Your turn: {player_name} ({player_class}) HP {ch.hp}/{ch.max_hp} at {state.get_pos(player_name)} speed {ch.speed_remaining} AC {ch.ac} weapon {ch.equipped_mainhand}. "
         f"Alive players: {[k for k, v in state.players.items() if v.alive]} "
@@ -262,9 +250,7 @@ LLMClient = TauLLM
 
 class BaseAgent:  # minimal shim for any external import
     def __init__(self, *a, **kw):
-        raise RuntimeError(
-            "BaseAgent is deprecated — use tau harness via run_tau_player_turn_sync"
-        )
+        raise RuntimeError("BaseAgent is deprecated — use tau harness via run_tau_player_turn_sync")
 
 
 class DMAgent:  # shim
@@ -280,9 +266,7 @@ class PlayerAgent:  # shim
         self.system = PLAYER_PROMPT + f"\nYou are {name} the {char_class}."
 
 
-def execute_tool_loop(
-    agent, tools: Tools, max_iters: int = 6
-) -> list[dict]:  # pragma: no cover
+def execute_tool_loop(agent, tools: Tools, max_iters: int = 6) -> list[dict]:  # pragma: no cover
     raise RuntimeError("execute_tool_loop is deprecated — use tau harness")
 
 

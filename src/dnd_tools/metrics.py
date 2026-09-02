@@ -39,11 +39,7 @@ def parameter_fidelity(trace: list[dict]) -> dict:
 def acting_quality(transcript: list[str]) -> dict:
     """Paper's A score: persona density + trait coverage."""
     # Keep narrative sentences (speaker text, not DM/tool)
-    narrative = [
-        l
-        for l in transcript
-        if not l.startswith("FUNC") and "<End Turn" not in l and "---" not in l
-    ]
+    narrative = [l for l in transcript if not l.startswith("FUNC") and "<End Turn" not in l and "---" not in l]
     # filter digits/dice
     filtered = [s for s in narrative if not re.search(r"\d+d\d+", s)]
     # persona if contains first-person beats or class-flavor keywords
@@ -62,10 +58,7 @@ def acting_quality(transcript: list[str]) -> dict:
         "chant",
     ]
     persona = sum(
-        1
-        for s in filtered
-        if any(k.lower() in s.lower() for k in persona_keywords)
-        or s.strip().startswith("I ")
+        1 for s in filtered if any(k.lower() in s.lower() for k in persona_keywords) or s.strip().startswith("I ")
     )
     density = persona / max(1, len(filtered))
     # trait diversity: count distinct archetypes mentioned

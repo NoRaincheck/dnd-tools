@@ -9,9 +9,7 @@ from .models import Cell
 
 def make_outdoor_map(seed: int, w: int = 20, h: int = 20) -> list[list[Cell]]:
     rng = random.Random(seed)
-    cells: list[list[Cell]] = [
-        [Cell(x=x, y=y, z=0, valid=True) for x in range(w)] for y in range(h)
-    ]
+    cells: list[list[Cell]] = [[Cell(x=x, y=y, z=0, valid=True) for x in range(w)] for y in range(h)]
     # Add height variation sparse so LoS mostly clear (keep tactical but not blocked every line)
     for y in range(h):
         for x in range(w):
@@ -37,14 +35,10 @@ def make_outdoor_map(seed: int, w: int = 20, h: int = 20) -> list[list[Cell]]:
     return cells
 
 
-def make_indoor_map(
-    seed: int, layout: dict | None = None, w: int = 20, h: int = 20
-) -> list[list[Cell]]:
+def make_indoor_map(seed: int, layout: dict | None = None, w: int = 20, h: int = 20) -> list[list[Cell]]:
     """Rasterize from compact JSON: {rooms:[{x,y,w,h}], walls:[{x,y}], doors:[{x,y}]}"""
     rng = random.Random(seed)
-    cells: list[list[Cell]] = [
-        [Cell(x=x, y=y, z=0, valid=False) for x in range(w)] for y in range(h)
-    ]
+    cells: list[list[Cell]] = [[Cell(x=x, y=y, z=0, valid=False) for x in range(w)] for y in range(h)]
     if layout is None:
         # generate 3 rooms connected by corridors
         rooms: list[tuple[int, int, int, int]] = []

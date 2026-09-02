@@ -78,9 +78,7 @@ MELEE_WEAPONS: dict[str, Weapon] = {
         DamageType.slashing,
         properties=("versatile",),
     ),
-    "greatsword": Weapon(
-        "greatsword", WeaponCategory.melee, "2d6", DamageType.slashing
-    ),
+    "greatsword": Weapon("greatsword", WeaponCategory.melee, "2d6", DamageType.slashing),
     "dagger": Weapon(
         "dagger",
         WeaponCategory.melee,
@@ -133,9 +131,7 @@ RANGED_WEAPONS: dict[str, Weapon] = {
 }
 
 # Unified lookups (case-insensitive)
-ALL_WEAPONS: dict[str, Weapon] = {
-    k.lower(): v for k, v in {**MELEE_WEAPONS, **RANGED_WEAPONS}.items()
-}
+ALL_WEAPONS: dict[str, Weapon] = {k.lower(): v for k, v in {**MELEE_WEAPONS, **RANGED_WEAPONS}.items()}
 MELEE_SET = set(MELEE_WEAPONS.keys())
 RANGED_SET = set(RANGED_WEAPONS.keys())
 
@@ -379,9 +375,7 @@ class Character:
     equipped_mainhand: str = "club"
     inventory: list[str] = dataclasses.field(default_factory=list)
     spell_list: list[str] = dataclasses.field(default_factory=list)
-    spell_slots: dict[int, int] = dataclasses.field(
-        default_factory=dict
-    )  # level -> slots remaining
+    spell_slots: dict[int, int] = dataclasses.field(default_factory=dict)  # level -> slots remaining
     spell_slots_max: dict[int, int] = dataclasses.field(default_factory=dict)
     num_of_action: int = 1
     num_of_bonus_action: int = 1

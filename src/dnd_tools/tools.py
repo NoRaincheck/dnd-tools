@@ -131,19 +131,14 @@ class Tools:
         ch = self.state.get_character(name)
         if not ch:
             raise KeyError(name)
-        self.state.log_tool(
-            "check_player_mainhand", {"name": name}, ch.equipped_mainhand
-        )
+        self.state.log_tool("check_player_mainhand", {"name": name}, ch.equipped_mainhand)
         return ch.equipped_mainhand
 
     def check_buffs(self, name: str) -> list[dict]:
         ch = self.state.get_character(name)
         if not ch:
             raise KeyError(name)
-        r = [
-            {"name": b.name, "remaining": b.remaining_turns, "desc": b.description}
-            for b in ch.buffs
-        ]
+        r = [{"name": b.name, "remaining": b.remaining_turns, "desc": b.description} for b in ch.buffs]
         self.state.log_tool("check_buffs", {"name": name}, r)
         return r
 
@@ -195,9 +190,7 @@ class Tools:
         if cur is None:
             raise KeyError(name)
         cx, cy, _cz = cur
-        dist_cells = max(
-            abs(cx - x), abs(cy - y)
-        )  # D&D 5e: diagonal = 5ft (simplified)
+        dist_cells = max(abs(cx - x), abs(cy - y))  # D&D 5e: diagonal = 5ft (simplified)
         # height slope: if diff >2, needs extra? For now allow but adv handled in attack
         cost = dist_cells * 5
         if cost > ch.speed_remaining:
@@ -262,21 +255,15 @@ class Tools:
         # if mover has disengaged buff, no OA
         if any(b.name == "disengaged" for b in ch_mover.buffs):
             res = {"triggered": False, "reason": "disengaged"}
-            self.state.log_tool(
-                "opportunity_attack", {"mover": mover, "enemy": enemy}, res
-            )
+            self.state.log_tool("opportunity_attack", {"mover": mover, "enemy": enemy}, res)
             return res
         if ch_enemy.num_of_reaction < 1:
             res = {"triggered": False, "reason": "no reaction"}
-            self.state.log_tool(
-                "opportunity_attack", {"mover": mover, "enemy": enemy}, res
-            )
+            self.state.log_tool("opportunity_attack", {"mover": mover, "enemy": enemy}, res)
             return res
         # check reach: within 1 cell is melee reach
         pa = self.state.get_pos(enemy)
-        pb = self.state.get_pos(
-            mover
-        )  # after move; we need pre-move? caller should handle before move
+        pb = self.state.get_pos(mover)  # after move; we need pre-move? caller should handle before move
         # For simplicity treat current distance after intent but before move as trigger.
         # If within 1, trigger.
         # Caller should call before moving.
@@ -685,13 +672,9 @@ class Tools:
             raise KeyError(name)
         from .models import ResistEntry
 
-        ch.resists.append(
-            ResistEntry(damage_type=damage_type, kind="resist", remaining_turns=turns)
-        )
+        ch.resists.append(ResistEntry(damage_type=damage_type, kind="resist", remaining_turns=turns))
         res = {"valid": True}
-        self.state.log_tool(
-            "add_resist", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("add_resist", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def add_immune(self, name: str, damage_type: str, turns: int = -1) -> dict:
@@ -700,13 +683,9 @@ class Tools:
             raise KeyError(name)
         from .models import ResistEntry
 
-        ch.resists.append(
-            ResistEntry(damage_type=damage_type, kind="immune", remaining_turns=turns)
-        )
+        ch.resists.append(ResistEntry(damage_type=damage_type, kind="immune", remaining_turns=turns))
         res = {"valid": True}
-        self.state.log_tool(
-            "add_immune", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("add_immune", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def add_vulner(self, name: str, damage_type: str, turns: int = -1) -> dict:
@@ -715,13 +694,9 @@ class Tools:
             raise KeyError(name)
         from .models import ResistEntry
 
-        ch.resists.append(
-            ResistEntry(damage_type=damage_type, kind="vulner", remaining_turns=turns)
-        )
+        ch.resists.append(ResistEntry(damage_type=damage_type, kind="vulner", remaining_turns=turns))
         res = {"valid": True}
-        self.state.log_tool(
-            "add_vulner", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("add_vulner", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def remove_a_buff(self, name: str, buff_name: str) -> dict:
@@ -731,9 +706,7 @@ class Tools:
         before = len(ch.buffs)
         ch.buffs = [b for b in ch.buffs if b.name != buff_name]
         res = {"valid": True, "removed": before != len(ch.buffs)}
-        self.state.log_tool(
-            "remove_a_buff", {"name": name, "buff_name": buff_name}, res
-        )
+        self.state.log_tool("remove_a_buff", {"name": name, "buff_name": buff_name}, res)
         return res
 
     def remove_resist(self, name: str, damage_type: str) -> dict:
@@ -741,15 +714,9 @@ class Tools:
         if not ch:
             raise KeyError(name)
         before = len(ch.resists)
-        ch.resists = [
-            e
-            for e in ch.resists
-            if not (e.damage_type == damage_type and e.kind == "resist")
-        ]
+        ch.resists = [e for e in ch.resists if not (e.damage_type == damage_type and e.kind == "resist")]
         res = {"valid": True, "removed": before != len(ch.resists)}
-        self.state.log_tool(
-            "remove_resist", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("remove_resist", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def remove_immune(self, name: str, damage_type: str) -> dict:
@@ -757,15 +724,9 @@ class Tools:
         if not ch:
             raise KeyError(name)
         before = len(ch.resists)
-        ch.resists = [
-            e
-            for e in ch.resists
-            if not (e.damage_type == damage_type and e.kind == "immune")
-        ]
+        ch.resists = [e for e in ch.resists if not (e.damage_type == damage_type and e.kind == "immune")]
         res = {"valid": True, "removed": before != len(ch.resists)}
-        self.state.log_tool(
-            "remove_immune", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("remove_immune", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def remove_vulner(self, name: str, damage_type: str) -> dict:
@@ -773,15 +734,9 @@ class Tools:
         if not ch:
             raise KeyError(name)
         before = len(ch.resists)
-        ch.resists = [
-            e
-            for e in ch.resists
-            if not (e.damage_type == damage_type and e.kind == "vulner")
-        ]
+        ch.resists = [e for e in ch.resists if not (e.damage_type == damage_type and e.kind == "vulner")]
         res = {"valid": True, "removed": before != len(ch.resists)}
-        self.state.log_tool(
-            "remove_vulner", {"name": name, "damage_type": damage_type}, res
-        )
+        self.state.log_tool("remove_vulner", {"name": name, "damage_type": damage_type}, res)
         return res
 
     def remove_a_concentration(self, name: str) -> dict:
@@ -809,14 +764,10 @@ class Tools:
             for x in range(w):
                 if not self.state.map[y][x].valid:
                     grid[y][x] = "#"
-        for name, (x, y, z) in list(self.state.players_pos.items()) + list(
-            self.state.monster_pos.items()
-        ):
+        for name, (x, y, z) in list(self.state.players_pos.items()) + list(self.state.monster_pos.items()):
             if 0 <= x < w and 0 <= y < h:
                 # first letter
-                grid[y][x] = (
-                    name[0].upper() if name in self.state.players else name[0].lower()
-                )
+                grid[y][x] = name[0].upper() if name in self.state.players else name[0].lower()
         lines = ["".join(row) for row in grid]
         out = "\n".join(lines)
         self.state.log_tool("visualize_map", {}, out)

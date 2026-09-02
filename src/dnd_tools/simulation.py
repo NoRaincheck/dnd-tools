@@ -40,9 +40,7 @@ def _random_stats(tier: str = "medium") -> dict:
     }
 
 
-def create_player(
-    name: str, char_class: str, tier: str = "medium", level: int = 1
-) -> Character:
+def create_player(name: str, char_class: str, tier: str = "medium", level: int = 1) -> Character:
     stats = _random_stats(tier)
     # weapon choice based on class
     if char_class in ("fighter", "paladin", "barbarian"):
@@ -72,11 +70,7 @@ def create_player(
         pool = list(SPELLS_NORM.keys())
         spells = random.sample(pool, k=min(3, len(pool)))
     slots = {1: 2} if spells else {}
-    ac = (
-        10
-        + (stats["dexterity"] - 10) // 2
-        + (2 if char_class in ("fighter", "paladin") else 0)
-    )
+    ac = 10 + (stats["dexterity"] - 10) // 2 + (2 if char_class in ("fighter", "paladin") else 0)
     return Character(
         name=name,
         max_hp=max(6, hp),
@@ -204,13 +198,10 @@ def load_scenario(path: Path | str) -> tuple[GameState, Tools]:
     random.seed(seed)
     state = GameState(seed_val=seed)
     players = [
-        create_player(f"P{i + 1}_{cls}", cls, tier=spec.get("tier", "medium"))
-        for i, cls in enumerate(spec["group"])
+        create_player(f"P{i + 1}_{cls}", cls, tier=spec.get("tier", "medium")) for i, cls in enumerate(spec["group"])
     ]
     mobs = spec["monster_set"]
-    monsters = [
-        create_monster(f"M{i + 1}_{tpl}", tpl) for i, tpl in enumerate(mobs["mobs"])
-    ]
+    monsters = [create_monster(f"M{i + 1}_{tpl}", tpl) for i, tpl in enumerate(mobs["mobs"])]
     initialize_encounter(state, players, monsters, map_kind=mobs["map"], seed=seed)
     tools = Tools(state)
     return state, tools
@@ -285,12 +276,7 @@ class Simulation:
             # opportunity checks before leaving
             for pn, pc in list(self.state.players.items()):
                 pos_pn = self.state.get_pos(pn)
-                if (
-                    pc.alive
-                    and cur
-                    and pos_pn
-                    and max(abs(cur[0] - pos_pn[0]), abs(cur[1] - pos_pn[1])) <= 1
-                ):
+                if pc.alive and cur and pos_pn and max(abs(cur[0] - pos_pn[0]), abs(cur[1] - pos_pn[1])) <= 1:
                     self.tools.opportunity_attack(name, pn)
             # step loop: move up to 6 cells (30ft)
             steps = min(6, int(dist // 5))
@@ -337,9 +323,7 @@ class Simulation:
                 mod = 3
                 try:
                     if w:
-                        stat = (
-                            "dexterity" if w.category.value == "ranged" else "strength"
-                        )
+                        stat = "dexterity" if w.category.value == "ranged" else "strength"
                         mod = ch.ability_mod(stat) + ch.pb
                 except:
                     pass
@@ -353,9 +337,7 @@ class Simulation:
                     action_cost=1,
                 )
                 if atk.get("out_of_range"):
-                    self.state.add_transcript(
-                        f"{name} cannot reach {target} (out_of_range) — moves next turn"
-                    )
+                    self.state.add_transcript(f"{name} cannot reach {target} (out_of_range) — moves next turn")
                 else:
                     self.state.add_transcript(
                         f"{name} (monster) attacks {target}: roll {atk.get('roll')} vs AC {atk.get('ac')} -> {'HIT' if atk.get('success') else 'MISS'}"
@@ -402,9 +384,7 @@ class Simulation:
                 from .agents import run_tau_player_turn_sync
 
                 # llm is TauLLM holding provider + model
-                provider = getattr(self.llm, "provider", None) or getattr(
-                    self.llm, "_provider", None
-                )
+                provider = getattr(self.llm, "provider", None) or getattr(self.llm, "_provider", None)
                 model = getattr(self.llm, "model", "qwen3.6-35b-a3b-mtp")
                 if provider is None:
                     # fallback to constructing provider from base_url if llm was bare
@@ -487,39 +467,25 @@ class Simulation:
             is_monster = actor in self.state.monsters
             # check_hp audit at start of round: when turn idx wraps, do full round HP check
             if self.state.current_turn_idx % len(self.state.initiative_order) == 0:
-                for n in list(self.state.players.keys()) + list(
-                    self.state.monsters.keys()
-                ):
+                for n in list(self.state.players.keys()) + list(self.state.monsters.keys()):
                     self.tools.check_hp(n)
             if is_monster:
-                self.state.add_transcript(
-                    f"--- Monster Turn: {actor} (round {self.state.round}) ---"
-                )
+                self.state.add_transcript(f"--- Monster Turn: {actor} (round {self.state.round}) ---")
                 self._monster_turn(actor)
             else:
-                self.state.add_transcript(
-                    f"--- Player Turn: {actor} (round {self.state.round}) ---"
-                )
+                self.state.add_transcript(f"--- Player Turn: {actor} (round {self.state.round}) ---")
                 self._player_turn(actor)
             self.state.advance_turn()
             turn_count += 1
             # export transcript chunk? Paper segments by <End Turn/>
         # combat end
         death = self.tools.print_death_point()
-        self.state.add_transcript(
-            f"Combat ended after {turn_count} turns. Deaths: {death}"
-        )
+        self.state.add_transcript(f"Combat ended after {turn_count} turns. Deaths: {death}")
         return {
             "transcript": self.state.transcript,
             "tool_trace": self.state.tool_trace,
             "death": death,
-            "players": {
-                n: {"hp": c.hp, "max": c.max_hp, "alive": c.alive}
-                for n, c in self.state.players.items()
-            },
-            "monsters": {
-                n: {"hp": c.hp, "max": c.max_hp, "alive": c.alive}
-                for n, c in self.state.monsters.items()
-            },
+            "players": {n: {"hp": c.hp, "max": c.max_hp, "alive": c.alive} for n, c in self.state.players.items()},
+            "monsters": {n: {"hp": c.hp, "max": c.max_hp, "alive": c.alive} for n, c in self.state.monsters.items()},
             "rounds": self.state.round,
         }

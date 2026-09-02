@@ -1,7 +1,7 @@
 [project]
 name = "dnd-tools"
 version = "0.1.0"
-description = "Add your description here"
+description = "Tool-grounded D&D simulation to test LLM agents — implementation of Setting the DC (NeurIPS 2025)"
 readme = "README.md"
 authors = [
     { name = "NoRaincheck", email = "2498638+NoRaincheck@users.noreply.github.com" }
@@ -24,6 +24,9 @@ dev = [
     "ruff>=0.16.5",
     "ty>=0.0.77",
 ]
+
+[tool.ruff]
+line-length = 120
 
 [tool.ruff.lint]
 # Broad catches are intentional for tool isolation / heuristic fallback; heuristic bare-except is legacy demo code

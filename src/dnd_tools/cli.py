@@ -43,9 +43,7 @@ def cmd_demo(args):
         llm = LLMClient(base_url=args.base_url, model=args.model)
         use_heuristic = False
         print(f"[using Tau LLM {args.model} at {args.base_url}]")
-    sim = Simulation(
-        state, tools, llm=llm, use_heuristic=use_heuristic, max_turns=args.turns
-    )
+    sim = Simulation(state, tools, llm=llm, use_heuristic=use_heuristic, max_turns=args.turns)
     result = sim.run()
     print("\n=== TRANSCRIPT ===")
     for line in result["transcript"]:
@@ -88,9 +86,7 @@ def main():
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_demo = sub.add_parser("demo", help="Run a demo encounter")
     p_demo.add_argument("--seed", type=int, default=42)
-    p_demo.add_argument(
-        "--turns", type=int, default=10, help="max turns per paper (10)"
-    )
+    p_demo.add_argument("--turns", type=int, default=10, help="max turns per paper (10)")
     p_demo.add_argument(
         "--use-llm",
         action="store_true",
@@ -100,27 +96,19 @@ def main():
     p_demo.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
     p_demo.add_argument("--save", type=str, default="")
 
-    p_scen = sub.add_parser(
-        "gen-scenarios", help="Generate 27 seeded scenarios (3x3x3)"
-    )
+    p_scen = sub.add_parser("gen-scenarios", help="Generate 27 seeded scenarios (3x3x3)")
     p_scen.add_argument("--seed", type=int, default=42)
     p_scen.add_argument("--out", type=str, default="scenarios")
 
     p_run = sub.add_parser("run-scenario", help="Run a scenario file")
     p_run.add_argument("path", type=str)
-    p_run.add_argument(
-        "--use-llm", action="store_true", help="Use Tau LLM instead of heuristic"
-    )
+    p_run.add_argument("--use-llm", action="store_true", help="Use Tau LLM instead of heuristic")
     p_run.add_argument("--base-url", default="http://127.0.0.1:1234/v1")
     p_run.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
     p_run.add_argument("--turns", type=int, default=10)
 
-    p_eval = sub.add_parser(
-        "eval", help="Evaluate all scenarios in a dir (heuristic or LLM)"
-    )
-    p_eval.add_argument(
-        "scenarios_dir", type=str, help="dir containing scenario_*.json"
-    )
+    p_eval = sub.add_parser("eval", help="Evaluate all scenarios in a dir (heuristic or LLM)")
+    p_eval.add_argument("scenarios_dir", type=str, help="dir containing scenario_*.json")
     p_eval.add_argument("--use-llm", action="store_true", help="Use Tau LLM")
     p_eval.add_argument("--base-url", default="http://127.0.0.1:1234/v1")
     p_eval.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
@@ -137,14 +125,8 @@ def main():
             print(p)
     elif args.cmd == "run-scenario":
         state, tools = load_scenario(args.path)
-        llm = (
-            LLMClient(base_url=args.base_url, model=args.model)
-            if args.use_llm
-            else None
-        )
-        sim = Simulation(
-            state, tools, llm=llm, use_heuristic=not args.use_llm, max_turns=args.turns
-        )
+        llm = LLMClient(base_url=args.base_url, model=args.model) if args.use_llm else None
+        sim = Simulation(state, tools, llm=llm, use_heuristic=not args.use_llm, max_turns=args.turns)
         res = sim.run()
         print("\n".join(res["transcript"]))
         print(json.dumps(evaluate_all(res["transcript"], res["tool_trace"]), indent=2))
@@ -152,17 +134,11 @@ def main():
         import glob
 
         files = sorted(glob.glob(str(Path(args.scenarios_dir) / "*.json")))
-        print(
-            f"Evaluating {len(files)} scenarios ({'LLM ' + args.model if args.use_llm else 'heuristic'})"
-        )
+        print(f"Evaluating {len(files)} scenarios ({'LLM ' + args.model if args.use_llm else 'heuristic'})")
         all_metrics = []
         for f in files:
             state, tools = load_scenario(f)
-            llm = (
-                LLMClient(base_url=args.base_url, model=args.model)
-                if args.use_llm
-                else None
-            )
+            llm = LLMClient(base_url=args.base_url, model=args.model) if args.use_llm else None
             sim = Simulation(
                 state,
                 tools,
@@ -177,18 +153,10 @@ def main():
                 f"{Path(f).name}: O={m['tactical_optimality']['O']:.3f} A={m['acting_quality']['A']:.3f} err={m['function_usage']['incorrect_function_pct']:.1f}%"
             )
         if all_metrics:
-            avg_O = sum(m["tactical_optimality"]["O"] for m in all_metrics) / len(
-                all_metrics
-            )
-            avg_A = sum(m["acting_quality"]["A"] for m in all_metrics) / len(
-                all_metrics
-            )
-            avg_err = sum(
-                m["function_usage"]["incorrect_function_pct"] for m in all_metrics
-            ) / len(all_metrics)
-            print(
-                f"\nAggregated — O {avg_O:.3f} | A {avg_A:.3f} | func_err {avg_err:.1f}% | n={len(all_metrics)}"
-            )
+            avg_O = sum(m["tactical_optimality"]["O"] for m in all_metrics) / len(all_metrics)
+            avg_A = sum(m["acting_quality"]["A"] for m in all_metrics) / len(all_metrics)
+            avg_err = sum(m["function_usage"]["incorrect_function_pct"] for m in all_metrics) / len(all_metrics)
+            print(f"\nAggregated — O {avg_O:.3f} | A {avg_A:.3f} | func_err {avg_err:.1f}% | n={len(all_metrics)}")
             if args.out:
                 Path(args.out).write_text(json.dumps(all_metrics, indent=2))
                 print(f"Saved metrics to {args.out}")

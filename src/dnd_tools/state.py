@@ -30,9 +30,7 @@ class GameState:
     # Map
     # ------------------------------------------------------------------
     def _make_empty_map(self, w: int, h: int):
-        self.map = [
-            [Cell(x=x, y=y, z=0, valid=True) for x in range(w)] for y in range(h)
-        ]
+        self.map = [[Cell(x=x, y=y, z=0, valid=True) for x in range(w)] for y in range(h)]
 
     def set_map(self, cells: list[list[Cell]]):
         self.map = cells
