@@ -73,19 +73,20 @@ Each call is validated (initiative, action/bonus/reaction budgets, spell slots, 
 ## Reproducing Paper Tables
 
 > Workshop PDF is not tracked verbatim in this repo (see `ref/31_Setting_the_DC_Synthesis.md:100`).
-> No `scenarios/` directory or result tables are committed — they are generated on demand via the CLI
-> below. Only results that you explicitly run locally are reported; this section documents *how* to
-> reproduce the paper's 27-scenario (3×3×3) design, not pre-computed numbers.
+> Result tables are not committed — they are generated on demand via the CLI below. Only results that
+> you explicitly run locally are reported; this section documents *how* to reproduce the paper's
+> 27-scenario (3×3×3) design.
 
 ### How to reproduce (CLI — single source of truth)
 
-All commands are deterministic and seedable. No scenarios are stored in git; generate them first.
+All commands are deterministic and seedable. The 27 scenarios are committed in `scenarios/`
+(generated via `gen-scenarios --seed 42`); regenerate them at any time:
 
 ```bash
-# 1. Generate the 27 scenarios (3 party-groups × 3 tiers × 3 monster–map sets)
+# 1. Generate (or regenerate) the 27 scenarios (3 party-groups × 3 tiers × 3 monster–map sets)
 #    Creates scenarios/scenario_01.json … scenario_27.json (seed 42 + sid)
 uv run dnd-tools gen-scenarios --seed 42 --out scenarios
-ls scenarios  # should show 27 files
+ls scenarios  # 27 files, committed in git
 
 # 2. Heuristic baseline — deterministic, no LLM (auditable via tool_trace)
 #    Runs all 27, prints per-scenario O/A/err and an aggregated line
