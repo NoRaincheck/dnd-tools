@@ -1,0 +1,21 @@
+{
+  "scenario_id": 18,
+  "seed": 60,
+  "group": [
+    "ranger",
+    "paladin",
+    "bard",
+    "druid"
+  ],
+  "tier": "high",
+  "monster_set": {
+    "name": "Klarg's Cave",
+    "mobs": [
+      "klarg",
+      "goblin",
+      "goblin",
+      "wolf"
+    ],
+    "map": "indoor"
+  }
+}

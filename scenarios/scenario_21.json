@@ -1,0 +1,21 @@
+{
+  "scenario_id": 21,
+  "seed": 63,
+  "group": [
+    "barbarian",
+    "monk",
+    "sorcerer",
+    "warlock"
+  ],
+  "tier": "low",
+  "monster_set": {
+    "name": "Klarg's Cave",
+    "mobs": [
+      "klarg",
+      "goblin",
+      "goblin",
+      "wolf"
+    ],
+    "map": "indoor"
+  }
+}

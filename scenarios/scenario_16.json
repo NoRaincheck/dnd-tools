@@ -1,0 +1,21 @@
+{
+  "scenario_id": 16,
+  "seed": 58,
+  "group": [
+    "ranger",
+    "paladin",
+    "bard",
+    "druid"
+  ],
+  "tier": "high",
+  "monster_set": {
+    "name": "Goblin Ambush",
+    "mobs": [
+      "goblin",
+      "goblin",
+      "goblin",
+      "goblin"
+    ],
+    "map": "outdoor"
+  }
+}

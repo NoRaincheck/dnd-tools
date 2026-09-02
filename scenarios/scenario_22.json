@@ -1,0 +1,21 @@
+{
+  "scenario_id": 22,
+  "seed": 64,
+  "group": [
+    "barbarian",
+    "monk",
+    "sorcerer",
+    "warlock"
+  ],
+  "tier": "medium",
+  "monster_set": {
+    "name": "Goblin Ambush",
+    "mobs": [
+      "goblin",
+      "goblin",
+      "goblin",
+      "goblin"
+    ],
+    "map": "outdoor"
+  }
+}

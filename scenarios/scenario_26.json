@@ -1,0 +1,21 @@
+{
+  "scenario_id": 26,
+  "seed": 68,
+  "group": [
+    "barbarian",
+    "monk",
+    "sorcerer",
+    "warlock"
+  ],
+  "tier": "high",
+  "monster_set": {
+    "name": "Kennel",
+    "mobs": [
+      "wolf",
+      "wolf",
+      "goblin",
+      "goblin"
+    ],
+    "map": "indoor"
+  }
+}

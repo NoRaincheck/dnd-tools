@@ -1,0 +1,21 @@
+{
+  "scenario_id": 2,
+  "seed": 44,
+  "group": [
+    "fighter",
+    "wizard",
+    "cleric",
+    "rogue"
+  ],
+  "tier": "low",
+  "monster_set": {
+    "name": "Kennel",
+    "mobs": [
+      "wolf",
+      "wolf",
+      "goblin",
+      "goblin"
+    ],
+    "map": "indoor"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "scenario_id": 7,
+  "seed": 49,
+  "group": [
+    "fighter",
+    "wizard",
+    "cleric",
+    "rogue"
+  ],
+  "tier": "high",
+  "monster_set": {
+    "name": "Goblin Ambush",
+    "mobs": [
+      "goblin",
+      "goblin",
+      "goblin",
+      "goblin"
+    ],
+    "map": "outdoor"
+  }
+}
