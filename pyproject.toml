@@ -1,0 +1,31 @@
+[project]
+name = "dnd-tools"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "NoRaincheck", email = "2498638+NoRaincheck@users.noreply.github.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "tau-ai>=0.4.1",
+]
+
+[project.scripts]
+dnd-tools = "dnd_tools.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.5",
+    "ty>=0.0.77",
+]
+
+[tool.ruff.lint]
+# Broad catches are intentional for tool isolation / heuristic fallback; heuristic bare-except is legacy demo code
+ignore = ["BLE001", "S110", "E722"]
+# Keep SIM102 as warning, RUF046 already fixed
