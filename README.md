@@ -157,7 +157,7 @@ Table below is the exact output of that command on the committed scenarios — n
 
 ### Per-model LLM reproduction (requires an OpenAI-compatible endpoint)
 
-Swap `--use-llm` to mirror paper Table 2/3. No LLM results are committed.
+Swap `--use-llm` to evaluate LLMs on the same 27 scenarios. No LLM results are committed.
 
 ```bash
 uv run dnd-tools eval scenarios --use-llm --model claude-3-5-haiku --base-url https://api.anthropic.com/v1
@@ -166,30 +166,6 @@ uv run dnd-tools eval scenarios --use-llm --model deepseek-v3 --base-url https:/
 # Local open-weight via LMStudio:
 uv run dnd-tools eval scenarios --use-llm --model qwen3.6-35b-a3b-mtp --base-url http://127.0.0.1:1234/v1
 ```
-
-### Paper-reported results (paraphrased, §6) — the only table committed
-
-The paper evaluated the same 27 JSON saves, 10 turns/episode, transcript + ordered tool trace,
-micro-averaged, with automated + human judges (`r≈0.96` acting quality, `r≈0.98` tactical).
-`gpt-oss-120b` was tried but omitted for identity inconsistency.
-
-| Model (paper) | Function Usage ↓ incorrect fn | Parameter Fidelity ↓ incorrect params | Function Efficiency ↓ unnecessary / missing → F1 | State Tracking ↓ hallucination | Acting Quality ↑ A (density/diversity) | Tactical Optimality ↑ O / survivability / efficiency |
-|---|---|---|---|---|---|---|
-| **Claude 3.5 Haiku** — most reliable overall | **~1.2%** (lowest) | **~1.1%** (lowest) | **lowest** unnecessary & missing → **95% F1 (human)**, best auto F1 | lowest hallucination | competitive (r≈0.96 vs human) | most aggressive in easy maps (lower remaining resources); **best combat efficiency in hard maps** |
-| **GPT-4o** — close second | slightly higher than Haiku | slightly higher, higher variance | slightly higher redundant calls | slightly higher hallucination | competitive | occasionally strongest peaks but higher variance; similar survivability in easy scenarios |
-| **DeepSeek-V3** — trails | notably higher | notably higher | notably higher **missing-call rate** | **notably higher hallucination**, grows with horizon; status-effect & resource errors dominate | **competitive persona density** | trails on efficiency / resource conservation |
-| gpt-oss-120b | — | — | — | — | — | omitted (failed identity consistency; pre-training/tuning mismatch, not just scale) |
-
-> **Reading:** lower is better for the three error-rate columns; higher is better for A / O / F1.
-> Hallucination grows with horizon on all models even after removing late-game entity-state errors;
-> entity-state confusion is rare but high-rate when it occurs. Resource trade-offs diverge:
-> easy scenarios similar survivability while Haiku is more aggressive; hard scenarios that aggression
-> yields best combat efficiency at cost of conservation.
->
-> Heuristic `A`/`O` in this repo are lightweight proxies (`metrics.py:39,92`); paper's full
-> human-judged persona diversity and combat-efficiency/remaining-resource curves require LLM
-> judges. Use the `eval` / `eval --use-llm` paths above for an apples-to-apples replication;
-> the design is seed-identical so traces are directly comparable.
 
 ## License
 
