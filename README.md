@@ -73,9 +73,6 @@ Each call is validated (initiative, action/bonus/reaction budgets, spell slots, 
 ## Reproducing Paper Tables
 
 > Workshop PDF is not tracked verbatim in this repo (see `ref/31_Setting_the_DC_Synthesis.md:100`).
-> Result tables are not committed — they are generated on demand via the CLI below. Only results that
-> you explicitly run locally are reported; this section documents *how* to reproduce the paper's
-> 27-scenario (3×3×3) design.
 
 ### How to reproduce (CLI — single source of truth)
 
@@ -91,10 +88,6 @@ ls scenarios  # 27 files, committed in git
 # 2. Heuristic baseline — deterministic, no LLM (auditable via tool_trace)
 #    Runs all 27, prints per-scenario O/A/err and an aggregated line
 uv run dnd-tools eval scenarios --turns 10
-# Expected stdout shape (values depend on local run, not committed):
-#   scenario_01.json: O=0.xxx A=0.xxx err=x.x%
-#   ...
-#   Aggregated — O 0.xxx | A 0.xxx | func_err x.x% | n=27
 
 # 3. Save machine-readable metrics for further analysis
 uv run dnd-tools eval scenarios --turns 10 --out metrics.json
@@ -110,6 +103,57 @@ Metrics are `src/dnd_tools/metrics.py:8` (`function_usage`, `parameter_fidelity`
 `transcript` + `tool_trace`. The heuristic policy is `src/dnd_tools/agents.py:276`
 (`heuristic_player_turn`); hallucination is 0 by construction (authoritative `Tools` dispatch).
 See paper §4 / `ref/31_Setting_the_DC_Synthesis.md:60` for definitions.
+
+### Reproduced results — heuristic baseline on committed `scenarios/` (seed 42, 10 turns, `n=27`)
+
+Run via `uv run dnd-tools eval scenarios --turns 10` (2526 tool calls total, 93.6 avg/scenario).
+Table below is the exact output of that command on the committed scenarios — no other results are included.
+
+**Aggregated (micro-averaged over 27 scenarios):**
+
+| Metric | Source | Value |
+|---|---|---|
+| Function Usage — incorrect function % | `metrics.py:8` | **2.11%** |
+| Parameter Fidelity — incorrect params % | `metrics.py:27` | **0.00%** |
+| Function Efficiency — unnecessary % | `metrics.py:125` | **12.66%** |
+| State Tracking — hallucination rate | `metrics.py:117` | **0.000** |
+| Acting Quality — A = 0.5·density + 0.5·diversity | `metrics.py:39` | **0.552** |
+| Tactical Optimality — O (mean turn reward) | `metrics.py:92` | **0.795** |
+| Avg tool calls / scenario | — | **93.6** (2526 total) |
+
+`Aggregated — O 0.795 | A 0.552 | func_err 2.1% | n=27` — matches CLI footer.
+
+**Per-scenario (27 = 3×3×3, seed 42+sid):**
+
+| # | Tier | Monster Set | Party | O | A | func_err | calls |
+|---|---|---|---|---|---|---|---|
+| 01 | low | Goblin Ambush | fighter,wizard,cleric,rogue | 0.909 | 0.200 | 0.0% | 102 |
+| 02 | low | Kennel | fighter,wizard,cleric,rogue | 0.727 | 0.200 | 2.3% | 86 |
+| 03 | low | Klarg's Cave | fighter,wizard,cleric,rogue | 0.909 | 0.200 | 0.0% | 97 |
+| 04 | medium | Goblin Ambush | fighter,wizard,cleric,rogue | 0.818 | 0.200 | 1.1% | 94 |
+| 05 | medium | Kennel | fighter,wizard,cleric,rogue | 0.727 | 0.200 | 2.2% | 92 |
+| 06 | medium | Klarg's Cave | fighter,wizard,cleric,rogue | 0.636 | 0.200 | 5.6% | 90 |
+| 07 | high | Goblin Ambush | fighter,wizard,cleric,rogue | 0.909 | 0.200 | 0.0% | 100 |
+| 08 | high | Kennel | fighter,wizard,cleric,rogue | 0.909 | 0.200 | 0.0% | 94 |
+| 09 | high | Klarg's Cave | fighter,wizard,cleric,rogue | 0.818 | 0.200 | 2.9% | 102 |
+| 10 | low | Goblin Ambush | ranger,paladin,bard,druid | 0.727 | 0.962 | 0.0% | 90 |
+| 11 | low | Kennel | ranger,paladin,bard,druid | 0.909 | 0.967 | 0.0% | 93 |
+| 12 | low | Klarg's Cave | ranger,paladin,bard,druid | 0.909 | 0.967 | 0.0% | 103 |
+| 13 | medium | Goblin Ambush | ranger,paladin,bard,druid | 0.909 | 1.000 | 0.0% | 102 |
+| 14 | medium | Kennel | ranger,paladin,bard,druid | 0.909 | 0.969 | 0.0% | 97 |
+| 15 | medium | Klarg's Cave | ranger,paladin,bard,druid | 0.818 | 1.000 | 2.4% | 85 |
+| 16 | high | Goblin Ambush | ranger,paladin,bard,druid | 0.909 | 0.967 | 0.0% | 103 |
+| 17 | high | Kennel | ranger,paladin,bard,druid | 0.455 | 0.858 | 10.7% | 84 |
+| 18 | high | Klarg's Cave | ranger,paladin,bard,druid | 0.727 | 0.958 | 3.5% | 86 |
+| 19 | low | Goblin Ambush | barbarian,monk,sorcerer,warlock | 0.909 | 0.487 | 0.0% | 107 |
+| 20 | low | Kennel | barbarian,monk,sorcerer,warlock | 0.455 | 0.367 | 12.8% | 78 |
+| 21 | low | Klarg's Cave | barbarian,monk,sorcerer,warlock | 0.909 | 0.479 | 0.0% | 96 |
+| 22 | medium | Goblin Ambush | barbarian,monk,sorcerer,warlock | 0.727 | 0.467 | 2.3% | 87 |
+| 23 | medium | Kennel | barbarian,monk,sorcerer,warlock | 0.636 | 0.621 | 3.6% | 84 |
+| 24 | medium | Klarg's Cave | barbarian,monk,sorcerer,warlock | 0.455 | 0.325 | 7.7% | 78 |
+| 25 | high | Goblin Ambush | barbarian,monk,sorcerer,warlock | 0.909 | 0.569 | 0.0% | 94 |
+| 26 | high | Kennel | barbarian,monk,sorcerer,warlock | 0.909 | 0.581 | 0.0% | 96 |
+| 27 | high | Klarg's Cave | barbarian,monk,sorcerer,warlock | 0.909 | 0.565 | 0.0% | 106 |
 
 ### Per-model LLM reproduction (requires an OpenAI-compatible endpoint)
 
