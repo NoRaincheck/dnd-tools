@@ -35,7 +35,7 @@ Heuristic fallback (no LLM) gives instant deterministic play for debugging and h
 ## Architecture
 
 ```
-src/dnd_tools/
+packages/dnd-tools/src/dnd_tools/   # paper implementation (frozen)
   models.py      — Character, Weapon, Spell, Cell, templates
   dice.py        — roll_dice("1d20"), advantage, seeded RNG
   state.py       — GameState (HP, pos, initiative, LoS, death log)
@@ -46,6 +46,13 @@ src/dnd_tools/
   simulation.py  — Generation + Simulation Loop (Fig. 1: query → move → validate → resolve → bookkeep; Tau harness per player turn)
   metrics.py     — 6 automated metrics (A density/diversity, O reward, hallucination rate, F1 proxies)
   cli.py         — demo / gen-scenarios / run-scenario / eval (Tau --use-llm flag)
+
+packages/dnd-campaign/src/dnd_campaign/  # long-horizon layer (isolated)
+  state.py     — CampaignState wrapper (snapshots, persistence, long/short rest)
+  tools.py     — CampaignTools (delegates to Tools + 6 campaign tools)
+  session.py   — CampaignSession (multi-encounter orchestration)
+  memory.py    — transcript/state compaction for LLM context
+  cli.py       — dnd-campaign demo
 ```
 
 ## Tool API (6 categories, paper §3)

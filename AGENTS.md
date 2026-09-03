@@ -6,7 +6,7 @@
 
 - **Language**: Python 3.14
 - **Package manager / runner**: [`uv`](https://github.com/astral-sh/uv)
-- **Structure**: `src/dnd_tools/` (package), `ref/` (references), `pyproject.toml`
+- **Structure**: `uv` workspace with `packages/dnd-tools/` (paper impl, `src/dnd_tools/`) and `packages/dnd-campaign/` (long-horizon layer, `src/dnd_campaign/`), `ref/` (references), workspace `pyproject.toml`
 
 ## Tooling
 

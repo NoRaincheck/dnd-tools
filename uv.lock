@@ -2,6 +2,19 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 
+[manifest]
+members = [
+    "dnd-campaign",
+    "dnd-tools",
+]
+
+[manifest.dependency-groups]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.5" },
+    { name = "ty", specifier = ">=0.0.77" },
+]
+
 [[package]]
 name = "annotated-doc"
 version = "0.0.5"
@@ -51,9 +64,38 @@ wheels = [
 ]
 
 [[package]]
+name = "dnd-campaign"
+version = "0.1.0"
+source = { editable = "packages/dnd-campaign" }
+dependencies = [
+    { name = "dnd-tools" },
+    { name = "tau-ai" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dnd-tools", editable = "packages/dnd-tools" },
+    { name = "tau-ai", specifier = ">=0.4.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.5" },
+    { name = "ty", specifier = ">=0.0.77" },
+]
+
+[[package]]
 name = "dnd-tools"
 version = "0.1.0"
-source = { editable = "." }
+source = { editable = "packages/dnd-tools" }
 dependencies = [
     { name = "tau-ai" },
 ]

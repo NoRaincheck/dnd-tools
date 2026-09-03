@@ -1,22 +1,5 @@
-[project]
-name = "dnd-tools"
-version = "0.1.0"
-description = "Tool-grounded D&D simulation to test LLM agents — implementation of Setting the DC (NeurIPS 2025)"
-readme = "README.md"
-authors = [
-    { name = "NoRaincheck", email = "2498638+NoRaincheck@users.noreply.github.com" }
-]
-requires-python = ">=3.14"
-dependencies = [
-    "tau-ai>=0.4.1",
-]
-
-[project.scripts]
-dnd-tools = "dnd_tools.cli:main"
-
-[build-system]
-requires = ["uv_build>=0.12.1,<0.13.0"]
-build-backend = "uv_build"
+[tool.uv.workspace]
+members = ["packages/*"]
 
 [dependency-groups]
 dev = [
@@ -29,6 +12,7 @@ dev = [
 line-length = 120
 
 [tool.ruff.lint]
-# Broad catches are intentional for tool isolation / heuristic fallback; heuristic bare-except is legacy demo code
 ignore = ["BLE001", "S110", "E722"]
-# Keep SIM102 as warning, RUF046 already fixed
+
+[tool.ty.environment]
+python-version = "3.14"
