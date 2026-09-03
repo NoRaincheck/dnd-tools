@@ -244,31 +244,33 @@ packages/dnd-campaign/src/dnd_campaign/  # long-horizon wrapper, never edits dnd
 # packages/dnd-tools/src/dnd_tools/models_tricube.py  (new, or extend models.py via imports)
 from dataclasses import dataclass, field
 
+
 @dataclass
 class Affliction:
-    name: str              # "broken arm", "lycanthropy", "despair"
+    name: str  # "broken arm", "lycanthropy", "despair"
     permanent: bool = False  # True if from critical failure
     recovery: str = "scene"  # "scene"|"hours"|"days"|"weeks"|"months"|"permanent"
     location: str | None = None
     source: str | None = None
 
+
 @dataclass
 class TricubeCharacter:
     name: str
-    trait: str             # agile|brawny|crafty
-    concept: str           # "elven ranger", "draconian knight"
-    combat_style: str      # melee|ranged|mental (defaults to trait, frozen)
+    trait: str  # agile|brawny|crafty
+    concept: str  # "elven ranger", "draconian knight"
+    combat_style: str  # melee|ranged|mental (defaults to trait, frozen)
     perks: list[str] = field(default_factory=list)
     quirks: list[str] = field(default_factory=list)
     afflictions: list[Affliction] = field(default_factory=list)
     karma: int = 3
-    karma_max: int = 3     # grows to 6
+    karma_max: int = 3  # grows to 6
     resolve: int = 3
-    resolve_max: int = 3   # grows to 6
-    rank: int = 1          # 1..6, +1 per 4 advances
+    resolve_max: int = 3  # grows to 6
+    rank: int = 1  # 1..6, +1 per 4 advances
     advances: int = 0
     # optional subsystems
-    xp: int = 0            # 1 XP = 1% of an advance; decorative unless using XP
+    xp: int = 0  # 1 XP = 1% of an advance; decorative unless using XP
 ```
 
 Map to existing `Character` where possible: reuse `Character` with extra fields (`karma`, `resolve`, `trait`, `afflictions`, `rank`) or keep a parallel `TricubeState` that stores both. **Do not break** `GameState` fields (`hp`, `ac`, `pos`); instead let Tricube resolve = `hp` proxy for reuse, or shadow with explicit `resolve` in `CampaignState` snapshot.
@@ -279,7 +281,7 @@ Add deterministic helper (seeded by `GameState.seed` via `dice.seed`):
 
 ```python
 def roll_challenge(dice_count: int, difficulty: int) -> dict:
-    rolls = [_rng.randint(1,6) for _ in range(dice_count)]  # 1-3d6
+    rolls = [_rng.randint(1, 6) for _ in range(dice_count)]  # 1-3d6
     successes = sum(1 for r in rolls if r >= difficulty)
     return {
         "rolls": rolls,
@@ -355,11 +357,17 @@ Wire via `agents.py:_tools_to_agent_tools()` + `AgentHarness` (provider = `OpenA
 from dnd_tools.agents import make_tau_provider, _tools_to_agent_tools
 from tau_agent.harness import AgentHarness, AgentHarnessConfig
 
-tools = TricubeTools(state)           # or CampaignTools(CampaignState(...))
+tools = TricubeTools(state)  # or CampaignTools(CampaignState(...))
 provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
-harness = AgentHarness(AgentHarnessConfig(
-    provider=provider, model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT_TRICUBE, tools=_tools_to_agent_tools(tools), max_turns=6))
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT_TRICUBE,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=6,
+    )
+)
 ```
 
 **Simulation loop** (`simulation.py` / `session.py`): keep `Simulation.run()` structure — `roll_initiative` → per-turn `check_side` → (optional `move` toward target) → `check_valid_attack_line` → `roll_challenge` → (`spend_karma`/`invoke_quirk` gates) → `apply_affliction` at 0 resolve → `reset_resources`/`reset_speed`/buff expiry → `<End Turn/>`. For campaign, `CampaignSession.add_encounter()` initializes Tricube parties + effort pools, `run_encounter()` delegates to `Simulation`, then `checkpoint()` + `prune_traces()`.
@@ -393,32 +401,40 @@ harness = AgentHarness(AgentHarnessConfig(
 difficulty = 5  # 4 easy, 5 standard, 6 hard
 trait = "brawny"
 effort = target.rank  # or 2*rank for boss
-dice_count = 3 if chr.trait==trait else 2
-if out_of_scope(chr.concept, chr.perks, challenge): dice_count = max(1, dice_count-1)
+dice_count = 3 if chr.trait == trait else 2
+if out_of_scope(chr.concept, chr.perks, challenge):
+    dice_count = max(1, dice_count - 1)
 
 # optional quirk gate (before roll)
-if player_declares_quirk: difficulty += 1  # can exceed 6; record for karma/resolve recovery
+if player_declares_quirk:
+    difficulty += 1  # can exceed 6; record for karma/resolve recovery
 
 # authoritative roll
 r = roll_challenge(dice_count, difficulty)  # rolls, successes, critical_failure
 # optional karma gate (after roll, max 1)
-if r.successes == 0 and player_spends_karma and chr.karma>0:
+if r.successes == 0 and player_spends_karma and chr.karma > 0:
     difficulty -= 1
     r = reevaluate(r.rolls, difficulty)  # recount successes vs new difficulty
     chr.karma -= 1
 
 effort_removed = min(effort_pool[target], r.successes)
 effort_pool[target] -= effort_removed
-if r.critical_failure: affliction_permanent = True; resolve_cost = 2
-elif not r.success:           resolve_cost = 1
-else:                         resolve_cost = 0  # exceptional → narrate benefit
-if resolve_cost: chr.resolve = max(0, chr.resolve - resolve_cost)
+if r.critical_failure:
+    affliction_permanent = True
+    resolve_cost = 2
+elif not r.success:
+    resolve_cost = 1
+else:
+    resolve_cost = 0  # exceptional → narrate benefit
+if resolve_cost:
+    chr.resolve = max(0, chr.resolve - resolve_cost)
 if chr.resolve == 0:
     apply_affliction(chr.name, name=choose_affliction(), permanent=affliction_permanent)
     chr.resolve = chr.resolve_max
     chr.afflictions.append(...)
     # cannot act remainder of scene
-if len(chr.afflictions) > 3: retired = True
+if len(chr.afflictions) > 3:
+    retired = True
 ```
 
 ---

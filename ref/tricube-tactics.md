@@ -353,13 +353,14 @@ Tactics adds `models_tactics.py` / `tools_tactics.py` / `state_tactics.py` / `pr
 class TacticsCharacter(TricubeCharacter):  # extends Tales §7.2
     speed: int = 3
     size: int = 1
-    subtraits: set[str] = field(default_factory=lambda: {"dexterity","reflexes","stealth"} )  # per trait
-    substyles: set[str] = field(default_factory=lambda: {"armed","parry","unarmed"})
+    subtraits: set[str] = field(default_factory=lambda: {"dexterity", "reflexes", "stealth"})  # per trait
+    substyles: set[str] = field(default_factory=lambda: {"armed", "parry", "unarmed"})
     knacks: list[Knack] = field(default_factory=list)  # name, kind, spec
     minions: int = 0
     minion_max: int = 6  # cap
     heavy_armor: bool = False
     light_armor: bool = False
+
 
 @dataclass
 class Knack:
@@ -368,19 +369,24 @@ class Knack:
     spec: str  # "ready", "frenzy", "frenzy→negate", "necromancy", "melee", "reflexes"
     trigger: str | None = None  # for strike: "exceptional_attack:melee" / "exceptional_defense:crafty" / "enter_reach"
 
+
 @dataclass
 class EnemyProfile:
     rating: str  # weak/average/strong/elite
     effort: int  # 1/2/3/4 base
-    difficulty: dict[str,int]  # per subtrait/substyle overrides; fallback 4/5/6/7
-    speed: int; size: int
+    difficulty: dict[str, int]  # per subtrait/substyle overrides; fallback 4/5/6/7
+    speed: int
+    size: int
     abilities: list[str]
     tactics: list[str]  # d6 table entries A–F
 
+
 @dataclass
 class WeaponState:
-    name: str; hands: int  # 1 small, 2 large
-    range_short: int; range_medium: int
+    name: str
+    hands: int  # 1 small, 2 large
+    range_short: int
+    range_medium: int
     attrs: set[str]  # firearm/powerful/multishot/heavy/throwing/incendiary
 ```
 
@@ -389,19 +395,23 @@ class WeaponState:
 ```python
 def roll_challenge_tactics(dice_count: int, difficulty: int, rerolls: list[Knack]) -> dict:
     # base Tales roll (1-3d6 vs 3-7)
-    rolls = [_rng.randint(1,6) for _ in range(dice_count)]
+    rolls = [_rng.randint(1, 6) for _ in range(dice_count)]
     # apply reroll knacks: one die per knack, never on 1, keep new, reroll≠crit
-    for k,q in zip(rerolls, ...):  # narrow-scope check via tag
+    for k, q in zip(rerolls, ...):  # narrow-scope check via tag
         ...
     successes = sum(1 for r in rolls if r >= difficulty)  # diff>6: need 6 on 2→success, 6 on 3→exceptional
     if difficulty > 6:
-        successes = (1 if rolls.count(6)>=2 else 0) if dice_count>=2 else 0
-        exceptional = rolls.count(6)==3
+        successes = (1 if rolls.count(6) >= 2 else 0) if dice_count >= 2 else 0
+        exceptional = rolls.count(6) == 3
     else:
         exceptional = successes >= 2
-    return {"rolls": rolls, "successes": successes, "exceptional": exceptional,
-            "critical_failure": all(v==1 for v in rolls) and not rerolls,
-            "effort_removed": successes}
+    return {
+        "rolls": rolls,
+        "successes": successes,
+        "exceptional": exceptional,
+        "critical_failure": all(v == 1 for v in rolls) and not rerolls,
+        "effort_removed": successes,
+    }
 ```
 
 Edge calc: sum bonuses/penalties from §8 (count `armored/frenzy/guard` twice if both sides), apply knack doubles/negates (melee/ranged double one named bonus; negate removes one named penalty fully). Clamp difficulty floor 3 (only karma may make 2).
@@ -461,10 +471,18 @@ Wire:
 ```python
 from dnd_tools.agents import make_tau_provider, _tools_to_agent_tools
 from tau_agent.harness import AgentHarness, AgentHarnessConfig
+
 tools = TacticsTools(campaign_state)  # wrapping TacticsGameState
-provider = make_tau_provider("http://127.0.0.1:1234/v1","lm-studio")
-harness = AgentHarness(AgentHarnessConfig(provider=provider, model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT_TACTICS, tools=_tools_to_agent_tools(tools), max_turns=8))
+provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT_TACTICS,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=8,
+    )
+)
 ```
 
 **Simulation loop** keep `simulation.py:214` shape: `roll_initiative/reflexes` → per-turn `check_side` → `move_tactics` (abstract zones/range bands as virtual coords if not gridded) → `apply_edge` → `roll_challenge_tactics` → optional `use_reroll`/`spend_karma` → `attack_tactics/perform_stunt` → `defense_roll` in medium phase (one/PC, overwhelming scaled) → `sacrifice_minion` fork → `affliction_check` at 0 → `reset_resources/reset_speed` + buff/minion temp expiry → `<End Turn/>`. `CampaignSession` orchestrates multi-encounter + `checkpoint`/`prune_traces` via `memory.py:10` `summarize_state`/`compact_transcript`.
@@ -494,32 +512,44 @@ harness = AgentHarness(AgentHarnessConfig(provider=provider, model="qwen3.6-35b-
 
 ```python
 # declare simple actions BEFORE move/attack
-if player_wants("aim"|"frenzy"|"guard"|"dash"): weapon_action(chr, action)  # tracks swift vs simple
+if player_wants("aim" | "frenzy" | "guard" | "dash"):
+    weapon_action(chr, action)  # tracks swift vs simple
 # move
 remaining = chr.speed + (3 if used("dash") else 0)
 for step in path:
-    cost = 2 if terrain=="difficult" else 1  # ×2 sprint if sprinting
-    if cost>remaining and wants("dash"): weapon_action(chr,"dash")
+    cost = 2 if terrain == "difficult" else 1  # ×2 sprint if sprinting
+    if cost > remaining and wants("dash"):
+        weapon_action(chr, "dash")
     move_tactics(chr, nx, ny)
 # declare quirk BEFORE roll
-if player_declares_quirk: difficulty += 1
+if player_declares_quirk:
+    difficulty += 1
 # roll + edge + reroll + karma gates
 rolls = roll_challenge_tactics(dice_count, difficulty + apply_edge(...), rerolls)
-if rolls.successes==0 and chr.karma>0 and player_spends:
-    difficulty -= 1; rolls = reevaluate(rolls.rolls, difficulty); chr.karma -=1
-if rolls.exceptional: extra_successes_may_hit(valid_targets)
+if rolls.successes == 0 and chr.karma > 0 and player_spends:
+    difficulty -= 1
+    rolls = reevaluate(rolls.rolls, difficulty)
+    chr.karma -= 1
+if rolls.exceptional:
+    extra_successes_may_hit(valid_targets)
 effort_pool[foe] -= rolls.successes
-if rolls.critical_failure: victim = choose_pin_or_shove_stunt_if_applicable()
+if rolls.critical_failure:
+    victim = choose_pin_or_shove_stunt_if_applicable()
 # medium phase defense (one per PC)
 successes_needed = 1  # 0 vs overwhelming handled in tool
-r = defense_roll(defender, difficulty=max_attack_difficulty, overwhelming=len(attackers)>=3)
-resolve_cost = { "exceptional":0, "success":1, "fail":2, "crit":3 }[r.outcome] if overwhelming else \
-               { "exceptional":0, "success":0, "fail":1, "crit":2 }[r.outcome]
-if r.outcome in ("fail","crit") and minion_threatened:
-    sacrifice_minion(defender); resolve_cost -=1  # only once
+r = defense_roll(defender, difficulty=max_attack_difficulty, overwhelming=len(attackers) >= 3)
+resolve_cost = (
+    {"exceptional": 0, "success": 1, "fail": 2, "crit": 3}[r.outcome]
+    if overwhelming
+    else {"exceptional": 0, "success": 0, "fail": 1, "crit": 2}[r.outcome]
+)
+if r.outcome in ("fail", "crit") and minion_threatened:
+    sacrifice_minion(defender)
+    resolve_cost -= 1  # only once
 defender.resolve -= resolve_cost
-if defender.resolve==0:
-    apply_affliction(defender); defender.resolve=defender.resolve_max
+if defender.resolve == 0:
+    apply_affliction(defender)
+    defender.resolve = defender.resolve_max
     check = affliction_check(defender, "endurance" if physical else "intellect")
     # success→stunned, exceptional→fine, fail→out, crit+permanent→fatal
 ```

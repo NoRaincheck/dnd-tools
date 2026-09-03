@@ -1,0 +1,38 @@
+[project]
+name = "tricube"
+version = "0.1.0"
+description = "Tricube Tales implementation — tool-grounded scenes & campaigns via dnd-tools + dnd-campaign + tau-ai"
+readme = "README.md"
+requires-python = ">=3.14"
+authors = [
+    { name = "NoRaincheck", email = "2498638+NoRaincheck@users.noreply.github.com" }
+]
+dependencies = [
+    "dnd-tools>=0.1.0",
+    "dnd-campaign>=0.1.0",
+    "tau-ai>=0.4.1",
+]
+
+[project.scripts]
+tricube = "tricube.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.5",
+    "ty>=0.0.77",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+ignore = ["BLE001", "S110", "E722"]
+
+[tool.uv.sources]
+dnd-tools = { workspace = true }
+dnd-campaign = { workspace = true }
