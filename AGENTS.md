@@ -81,14 +81,17 @@ uv run pytest && uv run ruff check . && uv run ruff format --check . && uv run t
 # Run demo encounter
 uv run dnd-tools demo --seed 42 --turns 10
 
-# Generate 27 scenarios
-uv run dnd-tools gen-scenarios --seed 42 --out scenarios
+# Generate 27 scenarios (paper package)
+uv run dnd-tools gen-scenarios --seed 42 --out packages/dnd-tools/scenarios
 
 # Run a single scenario
-uv run dnd-tools run-scenario scenarios/scenario_01.json --turns 10
+uv run dnd-tools run-scenario packages/dnd-tools/scenarios/scenario_01.json --turns 10
 
 # Run with LLM (requires LMStudio at :1234)
 uv run dnd-tools demo --use-llm --model qwen3.6-35b-a3b-mtp
+
+# Campaign demo
+uv run dnd-campaign demo --seed 42 --turns 10
 ```
 
 ## Dependencies

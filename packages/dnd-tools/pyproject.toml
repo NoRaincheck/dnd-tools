@@ -2,7 +2,7 @@
 name = "dnd-tools"
 version = "0.1.0"
 description = "Tool-grounded D&D simulation to test LLM agents — implementation of Setting the DC (NeurIPS 2025)"
-readme = "../../README.md"
+readme = "README.md"
 requires-python = ">=3.14"
 authors = [
     { name = "NoRaincheck", email = "2498638+NoRaincheck@users.noreply.github.com" }
