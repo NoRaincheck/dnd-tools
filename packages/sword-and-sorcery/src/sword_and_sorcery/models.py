@@ -128,7 +128,6 @@ class SnSCharacter:
     inventory: list[str] = dataclasses.field(default_factory=list)
     # map/runtime
     pos: tuple[int, int, int] = (0, 0, 0)
-    initiative: int = 0
     alive: bool = True
     is_player: bool = True
     unconscious: bool = False  # 0 HP — one chance to save before death
@@ -178,7 +177,6 @@ class SnSMonster:
     hp_max: int = 0
     dmg: int = 0
     pos: tuple[int, int, int] = (0, 0, 0)
-    initiative: int = 0
     alive: bool = True
     is_player: bool = False
 

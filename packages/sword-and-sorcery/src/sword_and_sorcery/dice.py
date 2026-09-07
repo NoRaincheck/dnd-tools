@@ -43,7 +43,7 @@ def roll_sns_check(
         if r == sns:
             divine = True
             successes += 1  # "Your roll counts as a success"
-        elif mode == "swords" and r < sns or mode == "sorcery" and r > sns:
+        elif (mode == "swords" and r < sns) or (mode == "sorcery" and r > sns):
             successes += 1
     # outcome label
     if successes == 0:

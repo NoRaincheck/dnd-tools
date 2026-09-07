@@ -472,8 +472,15 @@ class SnSTools:
         return res
 
     def roll_initiative(self) -> list[dict[str, Any]]:
+        """Deprecated: S&S RAW has no initiative. Use establish_turn_order()."""
         res = self.state.roll_initiative()
         self.state.log_tool("roll_initiative", {}, res)
+        return res
+
+    def establish_turn_order(self) -> list[dict[str, Any]]:
+        """Sensible conversation order (RAW: no dice). Players then threats, declaration order."""
+        res = self.state.establish_turn_order()
+        self.state.log_tool("establish_turn_order", {}, res)
         return res
 
     def end_turn(self, character: str) -> dict[str, Any]:
@@ -822,7 +829,15 @@ class SnSTools:
                 "type": "function",
                 "function": {
                     "name": "roll_initiative",
-                    "description": "Roll 1d6 initiative for all",
+                    "description": "Deprecated (S&S has no initiative): returns sensible order players-then-threats. Prefer establish_turn_order.",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "establish_turn_order",
+                    "description": "Sensible conversation order (RAW: no initiative dice). Players in declaration order, then threats.",
                     "parameters": {"type": "object", "properties": {}, "required": []},
                 },
             },

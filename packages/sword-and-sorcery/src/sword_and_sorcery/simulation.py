@@ -279,8 +279,12 @@ class SnSSimulation:
         self.state.add_transcript("<End Turn/>")
 
     def run(self) -> dict[str, Any]:
-        init = self.tools.roll_initiative()  # type: ignore
-        self.state.add_transcript(f"Initiative: {init}")
+        # S&S RAW has no initiative; use sensible conversation order instead.
+        try:
+            order = self.tools.establish_turn_order()  # type: ignore
+        except Exception:
+            order = self.tools.roll_initiative()  # type: ignore  # compat
+        self.state.add_transcript(f"Turn order (RAW: no initiative, sensible order): {order}")
         if self.state.adventure:
             self.state.add_transcript(f"Adventure: {self.state.adventure}")
         self.state.add_transcript("<End Turn/>")

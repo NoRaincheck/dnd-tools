@@ -73,7 +73,11 @@ class SnSState:
         self.monsters: dict[str, SnSMonster] = {}
         self.players_pos: dict[str, tuple[int, int, int]] = {}
         self.monster_pos: dict[str, tuple[int, int, int]] = {}
+        # Turn order — RAW S&S has no initiative. This is just a sensible
+        # conversation order (players in declaration order, then threats as
+        # GM-framed hazards). Kept as initiative_order for compat.
         self.initiative_order: list[str] = []
+        self.turn_order: list[str] = []  # alias for initiative_order
         self.current_turn_idx: int = 0
         self.round: int = 1
         self.death_log: list[str] = []
@@ -145,30 +149,36 @@ class SnSState:
         ch = self.get_character(name)
         return bool(ch and ch.alive)  # type: ignore[union-attr]
 
-    # -- initiative ---------------------------------------------------------
+    # -- turn order (RAW: no initiative) ----------------------------------
 
     def roll_initiative(self) -> list[dict[str, Any]]:
-        """1d6 per combatant (deterministic via dice)."""
-        from .dice import roll_d6
+        """Deprecated alias for establish_turn_order(). No dice — RAW has no initiative."""
+        return self.establish_turn_order()
 
-        entries: list[tuple[int, str]] = []
-        for c in list(self.players.values()) + list(self.monsters.values()):
-            v = roll_d6(1)[0]
-            c.initiative = v
-            entries.append((v, c.name))
-        entries.sort(reverse=True)
-        self.initiative_order = [n for _, n in entries]
+    def establish_turn_order(self) -> list[dict[str, Any]]:
+        """Sensible conversation order: players in declaration order, then threats.
+
+        S&S RAW (ref/sword-and-sorcery.md:120) has no initiative; the GM resolves
+        in sensible order and only players roll. We keep a deterministic order for
+        simulation bookkeeping without any 1d6.
+        """
+        order = list(self.players.keys()) + list(self.monsters.keys())
+        self.initiative_order = order
+        self.turn_order = order
         self.current_turn_idx = 0
-        return [{"name": n, "initiative": v} for v, n in entries]
+        # Return dicts without initiative numbers for RAW fidelity; keep 'order' index
+        return [{"name": n, "order": i} for i, n in enumerate(order)]
 
     def current_actor(self) -> str | None:
-        if not self.initiative_order:
+        order = self.turn_order or self.initiative_order
+        if not order:
             return None
-        return self.initiative_order[self.current_turn_idx % len(self.initiative_order)]
+        return order[self.current_turn_idx % len(order)]
 
     def advance_turn(self) -> None:
+        order = self.turn_order or self.initiative_order
         self.current_turn_idx += 1
-        if self.current_turn_idx % len(self.initiative_order) == 0:
+        if order and self.current_turn_idx % len(order) == 0:
             self.round += 1
 
     # -- HP / SP ------------------------------------------------------------
@@ -322,6 +332,7 @@ class SnSCampaignState:
             "players_pos": {k: list(v) for k, v in self.inner.players_pos.items()},
             "monster_pos": {k: list(v) for k, v in self.inner.monster_pos.items()},
             "initiative_order": list(self.inner.initiative_order),
+            "turn_order": list(self.inner.turn_order),
             "current_turn_idx": self.inner.current_turn_idx,
             "round": self.inner.round,
             "death_log": list(self.inner.death_log),
@@ -343,7 +354,10 @@ class SnSCampaignState:
         for k, pos in self.inner.monster_pos.items():
             if k in self.inner.monsters:
                 self.inner.monsters[k].pos = pos
-        self.inner.initiative_order = list(snap.get("initiative_order", []))
+        # compat: old saves stored initiative with dice values; new saves store turn_order
+        order = snap.get("turn_order", snap.get("initiative_order", []))
+        self.inner.initiative_order = list(order)
+        self.inner.turn_order = list(order)
         self.inner.current_turn_idx = int(snap.get("current_turn_idx", 0))
         self.inner.round = int(snap.get("round", 1))
         self.inner.death_log = list(snap.get("death_log", []))
