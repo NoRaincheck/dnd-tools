@@ -7,6 +7,7 @@ members = [
     "dnd-campaign",
     "dnd-tools",
     "tricube",
+    "triple-o",
 ]
 
 [manifest.dependency-groups]
@@ -496,6 +497,35 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dnd-campaign", editable = "packages/dnd-campaign" },
+    { name = "dnd-tools", editable = "packages/dnd-tools" },
+    { name = "tau-ai", specifier = ">=0.4.1" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.5" },
+    { name = "ty", specifier = ">=0.0.77" },
+]
+
+[[package]]
+name = "triple-o"
+version = "0.1.0"
+source = { editable = "packages/triple-o" }
+dependencies = [
+    { name = "dnd-tools" },
+    { name = "tau-ai" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
     { name = "dnd-tools", editable = "packages/dnd-tools" },
     { name = "tau-ai", specifier = ">=0.4.1" },
 ]
