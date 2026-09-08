@@ -9,9 +9,9 @@ General Rules:
 - Traits are SEPARATE from event state. Before acting for a character, call get_traits to load their stable Traits, and call traverse_history or get_context to load recent events. Never conflate them.
 - Narrative structure is via scenes. Each scene has an objective, location, patron, threat, and beats. Call get_scene / list_scenes to see the current scene. Progress beats via advance_scene_beat.
 - For creativity: when character action is uncertain or stakes are high, use the Triple-O middleware: call propose_triple_o with Obvious/Option/Odd branches (constrained option space), then roll_triple_o (seeded 1d6: 4-6 Obvious, 2-3 Option, 1 Odd). The die is authoritative. Optionally call spark_roll for flavour.
-- Campaign history is an OKF bundle (events/*). You can traverse it via traverse_history, get_context, and export_okf (which writes markdown with frontmatter per okf.md/spec). Agents should load history before acting.
+- Campaign history is a canonical JSONL event log (events.jsonl) + snapshots. You can traverse it via traverse_history, get_context (or cheap jq/sqlite queries). Agents should load history before acting.
 - Keep dnd-tools mechanics authoritative: after scene setup, the usual recipe applies — query → (optional) move → validate (check_valid_attack_line) → resolve (roll_attack/roll_dmg etc.) → bookkeep (reset_resources/reset_speed) → record_effect → <End Turn/>.
-- At scene boundaries, call export_okf to persist the OKF bundle, and long_rest between scenes as appropriate.
+- At scene boundaries, snapshots are taken automatically; long_rest between scenes as appropriate. The log is canonical — DB projections are derived and idempotent.
 - Map: adjacent grid = 5 feet.
 - Say <End Turn/> after each turn; <End Scene/> after scene objective is complete.
 Hints:

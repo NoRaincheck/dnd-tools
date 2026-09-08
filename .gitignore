@@ -14,3 +14,16 @@ wheels/
 ref/*.pdf
 !ref/*.md
 knowledge/
+
+# fused — canonical log is events.jsonl + snapshots; projections are derived and
+# idempotent (rebuildable via `fused build-projection`), never commit DB.
+*.db
+*.sqlite
+*.sqlite-journal
+**/projections/
+# snapshots and events.jsonl are local artefacts (replayable, but keep out of repo
+# for demo runs; commit only if you explicitly want a frozen campaign).
+# Uncomment to version a frozen campaign:
+# !knowledge/**/events.jsonl
+# !knowledge/**/snapshots/*.json
+# !knowledge/**/manifest.json

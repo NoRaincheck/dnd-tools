@@ -49,32 +49,41 @@ def test_fused_tools_scene_structure():
     assert len(hist) == 1
 
 
-def test_fused_session_okf_export_deterministic():
+def test_fused_session_projection_idempotent():
     with tempfile.TemporaryDirectory() as tmp:
         bundle = Path(tmp) / "bundle"
         fs = FusedState(seed_val=42, bundle_root=bundle)
         fs.register_traits(CharacterTraits(name="Elaria", archetype="ranger", traits=["Suspicious of authority"]))
-        # minimal players via session
         sess = FusedSession(fs)
-        # use helper to add scene with encounter
         from fused.models import Scene
 
         scene = Scene(scene_id="scene-01", title="Goblin Ambush", objective="Survive", location="wilderlands", seed=42)
         sess.add_scene_with_encounter(
             scene, player_specs=[("Elaria", "ranger", "medium")], monster_specs=["goblin"], map_kind="outdoor"
         )
-        # run short encounter
         res = sess.run_scene(max_turns=4, use_heuristic=True, use_triple_o=True)
         assert "players" in res
-        # bundle exported idempotently
-        root1 = fs.export_okf()
-        root2 = fs.export_okf()
-        # both are valid and same concepts
-        from fused.okf import OKFBundle
+        # log is canonical, validate it
+        assert fs.validate_log() == []
+        log = bundle / "events.jsonl"
+        assert log.exists()
+        # projection is idempotent — build twice gives same row count
+        from fused.projection import build_projection, query_events
 
-        assert OKFBundle.validate_bundle(root1) == []
-        assert OKFBundle.validate_bundle(root2) == []
-        # second export should not duplicate concept count (fresh bundle)
-        # traits still exactly one file each
-        assert (Path(root1) / "traits" / "elaria.md").exists()
-        assert (Path(root1) / "scenes" / "scene-01.md").exists()
+        db = bundle / "projections" / "campaign.db"
+        build_projection(log, db)
+        rows1 = query_events(db)
+        build_projection(log, db)
+        rows2 = query_events(db)
+        assert len(rows2) == len(rows1)
+        assert len(rows1) >= 4  # trait + scene + encounter-start + triple-o + scene-end
+        # delete and rebuild still idempotent (can be recreated from events + snapshots)
+        db.unlink()
+        build_projection(log, db)
+        rows3 = query_events(db)
+        assert len(rows3) == len(rows1)
+        # replay from log matches in-memory
+        from fused.state import FusedState as FS2
+
+        fs2 = FS2.from_log(log)
+        assert len(fs2.effects) == len(fs.effects)

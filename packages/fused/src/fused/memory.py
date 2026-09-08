@@ -1,4 +1,4 @@
-"""Memory helpers — bounded context + OKF traversal for LLM agents."""
+"""Memory helpers — bounded context + event-log traversal for LLM agents."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ def summarize_fused(cstate: FusedState) -> dict[str, Any]:
         "round": cstate.campaign.inner.round,
         "turn": cstate.campaign.inner.current_actor(),
         "bundle_root": str(cstate.bundle_root) if cstate.bundle_root else None,
+        "event_log": str(cstate.event_log_path),
+        "snapshots_dir": str(cstate.snapshots_dir),
     }
 
 
