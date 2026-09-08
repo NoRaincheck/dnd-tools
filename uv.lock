@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 members = [
     "dnd-campaign",
     "dnd-tools",
+    "fused",
     "sword-and-sorcery",
     "tricube",
     "triple-o",
@@ -112,6 +113,39 @@ dev = [
 
 [package.metadata]
 requires-dist = [{ name = "tau-ai", specifier = ">=0.4.1" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.16.5" },
+    { name = "ty", specifier = ">=0.0.77" },
+]
+
+[[package]]
+name = "fused"
+version = "0.1.0"
+source = { editable = "packages/fused" }
+dependencies = [
+    { name = "dnd-campaign" },
+    { name = "dnd-tools" },
+    { name = "tau-ai" },
+    { name = "triple-o" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dnd-campaign", editable = "packages/dnd-campaign" },
+    { name = "dnd-tools", editable = "packages/dnd-tools" },
+    { name = "tau-ai", specifier = ">=0.4.1" },
+    { name = "triple-o", editable = "packages/triple-o" },
+]
 
 [package.metadata.requires-dev]
 dev = [

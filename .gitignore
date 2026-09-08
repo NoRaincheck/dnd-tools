@@ -13,3 +13,4 @@ wheels/
 *.pdf
 ref/*.pdf
 !ref/*.md
+knowledge/
