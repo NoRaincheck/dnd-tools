@@ -502,7 +502,7 @@ class FusedTools:
                             "actor": {"type": "string"},
                             "attribute": {
                                 "type": "string",
-                                "enum": ["Insight", "Prowess", "Resolve", "Resolve", "insight", "prowess", "resolve"],
+                                "enum": ["Insight", "Prowess", "Resolve", "insight", "prowess", "resolve"],
                             },
                         },
                         "required": ["actor"],

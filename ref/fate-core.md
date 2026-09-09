@@ -348,20 +348,33 @@ def roll_fate(skill: int) -> dict:
     dice = [_rng.choice([-1, 0, 1]) for _ in range(4)]  # 4dF
     total = sum(dice) + skill
     return {
-        "dice": dice,          # e.g. [1,0,-1,1]
-        "sum": sum(dice),      # -4..+4
+        "dice": dice,  # e.g. [1,0,-1,1]
+        "sum": sum(dice),  # -4..+4
         "skill": skill,
         "total": total,
         "ladder": ladder_name(total),  # Legendary..Terrible
-        "shifts": None,        # filled after vs opposition
+        "shifts": None,  # filled after vs opposition
     }
 
 
 def ladder_name(n: int) -> str:
-    table = {8:"Legendary",7:"Epic",6:"Fantastic",5:"Superb",4:"Great",
-             3:"Good",2:"Fair",1:"Average",0:"Mediocre",-1:"Poor",-2:"Terrible"}
-    if n > 8: return f"Legendary+{n-8}"
-    if n < -2: return f"Terrible{n+2}"
+    table = {
+        8: "Legendary",
+        7: "Epic",
+        6: "Fantastic",
+        5: "Superb",
+        4: "Great",
+        3: "Good",
+        2: "Fair",
+        1: "Average",
+        0: "Mediocre",
+        -1: "Poor",
+        -2: "Terrible",
+    }
+    if n > 8:
+        return f"Legendary+{n - 8}"
+    if n < -2:
+        return f"Terrible{n + 2}"
     return table[n]
 
 
@@ -414,13 +427,15 @@ from tau_agent.harness import AgentHarness, AgentHarnessConfig
 
 tools = FateTools(state)  # or CampaignTools(FateCampaignState(...))
 provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
-harness = AgentHarness(AgentHarnessConfig(
-    provider=provider,
-    model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT_FATE,
-    tools=_tools_to_agent_tools(tools),
-    max_turns=8,
-))
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT_FATE,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=8,
+    )
+)
 ```
 
 **Simulation loop** (`simulation.py` / `session.py`): keep `Simulation.run()` structure — `set_scene (zones+aspects+gm_fate)` → `roll_initiative` (Notice/Investigate) → per-exchange `check_side` → `set_opposition` → `roll_fate` → optional `invoke_aspect`/`compel_aspect` → `create_advantage/overcome/attack/defend` → `apply_stress/add_consequence` → `concede` fork → `clear_stress` / `recover` / `refresh_fate` between scenes → `<End Turn/>`. For campaign, `CampaignSession.add_scene()` initializes `gm_fate = n_pcs` + aspect registry, `run_scene()` delegates to `Simulation`, then `checkpoint()` + `prune_traces()`.

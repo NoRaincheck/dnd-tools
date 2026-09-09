@@ -139,12 +139,12 @@ class FusedState:
         # also mirror into current scene clocks if active
         cur = self.current_scene()
         if cur is not None and not any(c.name == name for c in cur.clocks):
-            cur.clocks.append(Clock(name=name, segments=int(segments), kind=kind))
+            cur.clocks.append(Clock(name=name, segments=int(segments), kind=kind, ticks=clk.ticks))
         self.record_effect(
             "clock-set",
             "GM",
             f"Clock {name} {clk.ticks}/{clk.segments}",
-            payload={"name": name, "segments": segments, "kind": kind},
+            payload={"name": name, "segments": segments, "kind": kind, "ticks": clk.ticks},
         )
         return clk
 
@@ -225,11 +225,11 @@ class FusedState:
                 "reason": "Position/effect not set. Call set_position_and_effect(actor, action, position, effect) before action_roll.",
                 "hint": "set_position_and_effect(actor='A', action='Prowl', position='risky', effect='standard')",
             }
-        # derive pool: baseline 2 + (traits count //3) capped 4, mirrors blades action rating without requiring playbook
+        # derive pool: baseline allows zero-dice 2d6kL for traitless/weak actors, caps at 4
         traits = self.traits_registry.get(actor)
-        base = 2
+        base = 0
         if traits:
-            base = min(4, 2 + len(traits.traits) // 2 + len(traits.favored_skills) // 3)
+            base = min(4, len(traits.traits) // 2 + len(traits.favored_skills) // 3)
         pool = base
         # zero-dice case
         if pool <= 0:
@@ -752,19 +752,20 @@ class FusedState:
 
                         segs = int(payload.get("segments", 6))
                         kind_s = str(payload.get("kind", "obstacle"))
-                        self.clocks[name] = _Clk(
-                            name=name, segments=segs, kind=kind_s, ticks=int(payload.get("ticks", 0))
-                        )
+                        ticks_v = int(payload.get("ticks", 0))
+                        self.clocks[name] = _Clk(name=name, segments=segs, kind=kind_s, ticks=ticks_v)
                         for s in self.scenes:
                             for c in s.clocks:
                                 if isinstance(c, dict):
                                     if c.get("name") == name:
                                         c["segments"] = segs
                                         c["kind"] = kind_s
+                                        c["ticks"] = ticks_v
                                         break
                                 elif c.name == name:
                                     c.segments = segs
                                     c.kind = kind_s
+                                    c.ticks = ticks_v
                                     break
                     elif kind == "clock-tick":
                         clk = self.clocks.get(name)

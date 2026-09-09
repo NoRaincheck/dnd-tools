@@ -309,9 +309,21 @@ No file under `dnd-tools/` is edited for Tricube. The `tricube` package is a wor
 
 from dataclasses import dataclass, field
 
-class Trait(str, Enum): agile="agile"; brawny="brawny"; crafty="crafty"
-class CombatStyle(str, Enum): melee="melee"; ranged="ranged"; mental="mental"
-TRAIT_DEFAULT_STYLE = {"agile":"ranged","brawny":"melee","crafty":"mental"}
+
+class Trait(str, Enum):
+    agile = "agile"
+    brawny = "brawny"
+    crafty = "crafty"
+
+
+class CombatStyle(str, Enum):
+    melee = "melee"
+    ranged = "ranged"
+    mental = "mental"
+
+
+TRAIT_DEFAULT_STYLE = {"agile": "ranged", "brawny": "melee", "crafty": "mental"}
+
 
 @dataclass
 class Affliction:
@@ -320,6 +332,7 @@ class Affliction:
     recovery: str = "scene"  # scene|hours|days|weeks|months|years|permanent
     location: str | None = None
     source: str | None = None
+
 
 @dataclass
 class TricubeCharacter:
@@ -338,7 +351,7 @@ class TricubeCharacter:
     advances: int = 0
     xp: int = 0  # 1 XP = 1% of an advance
     # map/runtime (reuses dnd_tools Cell/dice for grid/LoS)
-    pos: tuple[int,int,int] = (0,0,0)
+    pos: tuple[int, int, int] = (0, 0, 0)
     initiative: int = 0
     alive: bool = True
     is_player: bool = True
@@ -347,12 +360,13 @@ class TricubeCharacter:
     _karma_spent_this_challenge: bool = False
     _effort_init: int | None = None
 
-    def dice_count_for(self, required_trait:str, *, out_of_scope:bool=False) -> int:
-        base = 3 if self.trait==required_trait.lower() else 2
+    def dice_count_for(self, required_trait: str, *, out_of_scope: bool = False) -> int:
+        base = 3 if self.trait == required_trait.lower() else 2
         return max(1, base - (1 if out_of_scope else 0))
 
     @property
-    def retired(self) -> bool: return len(self.afflictions) > 3
+    def retired(self) -> bool:
+        return len(self.afflictions) > 3
 ```
 
 `models.py:105` `rank_from_advances = min(6, 1+advances//4)`, `models.py:110` `BESTIARY` + `models.py:128` `effort_for_rank(rank, is_boss)` map directly to `state.py:88` `effort_pools` and `tools.py:191` rank-diff logic.
@@ -365,20 +379,36 @@ Deterministic helper seeded by `TricubeState.seed` via `dnd_tools.dice.seed`:
 # packages/tricube/src/tricube/dice.py
 from dnd_tools.dice import seed as base_seed  # re-exported
 
-def roll_tricube(dice_count:int, difficulty:int) -> dict:
-    rolls = [_rng.randint(1,6) for _ in range(dice_count)]
+
+def roll_tricube(dice_count: int, difficulty: int) -> dict:
+    rolls = [_rng.randint(1, 6) for _ in range(dice_count)]
     successes = sum(1 for r in rolls if r >= difficulty)
-    return {"dice_count":dice_count,"difficulty":difficulty,"rolls":rolls,
-            "successes":successes,"success":successes>=1,"exceptional":successes>=2,
-            "critical_failure":all(r==1 for r in rolls),"effort_removed":successes}
+    return {
+        "dice_count": dice_count,
+        "difficulty": difficulty,
+        "rolls": rolls,
+        "successes": successes,
+        "success": successes >= 1,
+        "exceptional": successes >= 2,
+        "critical_failure": all(r == 1 for r in rolls),
+        "effort_removed": successes,
+    }
 
-def reevaluate_with_difficulty(rolls:list[int], new_difficulty:int) -> dict:
+
+def reevaluate_with_difficulty(rolls: list[int], new_difficulty: int) -> dict:
     successes = sum(1 for r in rolls if r >= new_difficulty)
-    return {"rolls":list(rolls),"difficulty":new_difficulty,"successes":successes,
-            "success":successes>=1,"exceptional":successes>=2,
-            "critical_failure":all(r==1 for r in rolls),"effort_removed":successes}
+    return {
+        "rolls": list(rolls),
+        "difficulty": new_difficulty,
+        "successes": successes,
+        "success": successes >= 1,
+        "exceptional": successes >= 2,
+        "critical_failure": all(r == 1 for r in rolls),
+        "effort_removed": successes,
+    }
 
-def opposed_result(a_rolls:list[int], b_rolls:list[int]) -> dict:
+
+def opposed_result(a_rolls: list[int], b_rolls: list[int]) -> dict:
     # each treats other's highest die as difficulty; most matches wins; both 1s → both_crit
     ...
 ```
@@ -447,10 +477,15 @@ from tau_agent.harness import AgentHarness, AgentHarnessConfig
 
 tools = TricubeTools(state)  # or TricubeCampaignTools(TricubeCampaignState(...))
 provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
-harness = AgentHarness(AgentHarnessConfig(
-    provider=provider, model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT, tools=_tools_to_agent_tools(tools), max_turns=6,
-))
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=6,
+    )
+)
 ```
 
 **Simulation loop** (`simulation.py`): keep `Simulation.run()` structure — `roll_initiative` (or narrative order) → per-turn `check_side` → (optional `move` toward target) → `check_valid_attack_line` → `roll_challenge` (`invoke_quirk` gate before, `spend_karma` gate after, rank/out_of_scope handled inside) → `defense_roll` on enemy turn → `apply_affliction` at 0 resolve → `end_turn` (+ `choose_quirk_reward` if applicable) / buff expiry → `<End Turn/>`. For campaign, `CampaignSession.add_encounter()` initializes Tricube parties + effort pools, `run_encounter()` delegates to `Simulation`, then `checkpoint()` + `prune_traces()` (`memory.py:10` `summarize_state`/`compact_transcript`).

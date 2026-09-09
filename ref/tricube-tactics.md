@@ -408,6 +408,7 @@ If not adding a new workspace member, keep `tactics/` under `packages/tricube/sr
 # packages/tricube/src/tricube_tactics/models_tactics.py
 from dataclasses import dataclass, field
 
+
 @dataclass
 class TacticsCharacter(TricubeCharacter):  # extends tricube/models.py:TricubeCharacter §7.2
     speed: int = 3
@@ -421,12 +422,14 @@ class TacticsCharacter(TricubeCharacter):  # extends tricube/models.py:TricubeCh
     heavy_armor: bool = False
     light_armor: bool = False
 
+
 @dataclass
 class Knack:
     name: str
     kind: str  # action / edge_melee / edge_ranged / edge_negate / freeform / combat / speed / terrain / reroll / strike
     spec: str  # "ready", "frenzy", "frenzy→negate", "necromancy", "melee", "reflexes", "necromancy(minion)"
     trigger: str | None = None  # for strike: "exceptional_attack:melee" / "exceptional_defense:crafty" / "enter_reach"
+
 
 @dataclass
 class EnemyProfile:
@@ -437,6 +440,7 @@ class EnemyProfile:
     size: int = 1
     abilities: list[str] = field(default_factory=list)  # knack-equivalents: action/edge/immune/movement/strike/special
     tactics: list[str] = field(default_factory=list)  # d6 table entries A–F (§16)
+
 
 @dataclass
 class WeaponState:
@@ -456,14 +460,17 @@ class WeaponState:
 # packages/tricube/src/tricube_tactics/dice_tactics.py
 from tricube.dice import _rng
 
-def roll_challenge_tactics(dice_count:int, difficulty:int, rerolls:list["Knack"]) -> dict:
-    rolls = [_rng.randint(1,6) for _ in range(dice_count)]
+
+def roll_challenge_tactics(dice_count: int, difficulty: int, rerolls: list["Knack"]) -> dict:
+    rolls = [_rng.randint(1, 6) for _ in range(dice_count)]
     # apply reroll knacks: one die per knack, never on 1, keep new, reroll never counts as crit
     for k in rerolls:
-        if not _in_scope(k, rolls): continue
+        if not _in_scope(k, rolls):
+            continue
         idx = _pick_die(rolls)  # player/LLM picks via use_reroll tool; narrow scope checked
-        if rolls[idx] == 1: continue  # reroll knack may not reroll 1
-        rolls[idx] = _rng.randint(1,6)  # must keep new
+        if rolls[idx] == 1:
+            continue  # reroll knack may not reroll 1
+        rolls[idx] = _rng.randint(1, 6)  # must keep new
         # rerolled value is final, not re-rollable, and never contributes to critical failure check
     # below-3 is impossible (only karma may make 2), beyond-6 is special:
     if difficulty > 6:
@@ -472,9 +479,13 @@ def roll_challenge_tactics(dice_count:int, difficulty:int, rerolls:list["Knack"]
     else:
         successes = sum(1 for r in rolls if r >= difficulty)
         exceptional = successes >= 2
-    return {"rolls":rolls,"successes":successes,"exceptional":exceptional,
-            "critical_failure": all(v==1 for v in rolls) and not rerolls,
-            "effort_removed":successes}
+    return {
+        "rolls": rolls,
+        "successes": successes,
+        "exceptional": exceptional,
+        "critical_failure": all(v == 1 for v in rolls) and not rerolls,
+        "effort_removed": successes,
+    }
 ```
 
 Edge calc helper: `edge_calc(chr, target, context) -> {delta:int, breakdown:dict}` sums §8 bonuses/penalties (count `armored/frenzy/guard` twice if both sides), applies knack doubles (`edge_melee`/`edge_ranged` double one named bonus) and any number of `edge_negate` (eliminate one named penalty fully). Clamp floor `3` (only karma may make `2`), no ceiling clamp (quirks may exceed `7`).
@@ -538,10 +549,15 @@ from tau_agent.harness import AgentHarness, AgentHarnessConfig
 
 tools = TacticsTools(TacticsState(seed=42))  # or TricubeCampaignTools(TacticsCampaignState(...))
 provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
-harness = AgentHarness(AgentHarnessConfig(
-    provider=provider, model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT_TACTICS, tools=_tools_to_agent_tools(tools), max_turns=8,
-))
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT_TACTICS,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=8,
+    )
+)
 ```
 
 **Simulation loop** keep `tricube/simulation.py:214`-like shape but with Tactics phases (§7): `roll_initiative/reflexes` (fast/medium/slow) → per-turn `check_side` → `move_tactics` (or abstract zones/range bands as virtual coords if not gridded) → `apply_edge` → `roll_challenge_tactics` (`invoke_quirk` before, `use_reroll` narrow before `spend_karma`, rank/out_of_scope handled inside) → `attack_tactics/perform_stunt` → `defense_roll` in medium phase (one/PC, overwhelming scaled, `protect` fork) → `sacrifice_minion` fork → `affliction_check` at 0 resolve → `roll_severity`/`roll_hit_location` → `reset_resources/reset_speed` + buff/minion temp expiry → `<End Turn/>`. `CampaignSession` orchestrates multi-encounter + `checkpoint`/`prune_traces` via `memory.py:10` `summarize_state`/`compact_transcript`.
@@ -628,8 +644,9 @@ rolls = roll_challenge_tactics(dice_count, effective, rerolls=applicable_reroll_
 # reroll knacks already applied inside via use_reroll per die (not on 1, keep new, max dice_count)
 if rolls.successes == 0 and chr.karma > 0 and player_spends:
     # spend_karma gate: max once, must supply rolls+effective
-    rolls = reevaluate(rolls.rolls, effective-1)  # difficulty may go 3→2, floor 2
-    chr.karma -= 1; chr._karma_spent_this_challenge = True
+    rolls = reevaluate(rolls.rolls, effective - 1)  # difficulty may go 3→2, floor 2
+    chr.karma -= 1
+    chr._karma_spent_this_challenge = True
 
 if rolls.exceptional:
     extra_successes_may_hit(valid_targets)  # each extra success is a valid extra target
@@ -641,22 +658,27 @@ if stunt_declared:
     perform_stunt(attacker, target, stunt, successes=rolls.successes)
 
 # medium phase defense — one per PC vs most dangerous (§14)
-r = defense_roll(defender, difficulty=max_attack_difficulty(effective), overwhelming=(len(attackers)>=3))
+r = defense_roll(defender, difficulty=max_attack_difficulty(effective), overwhelming=(len(attackers) >= 3))
 # r outcome → resolve_cost map (overwhelming vs standard) plus stunt effects map
 if overwhelming:
-    resolve_cost = {"exceptional":0,"success":1,"fail":2,"crit":3}[r.outcome]
+    resolve_cost = {"exceptional": 0, "success": 1, "fail": 2, "crit": 3}[r.outcome]
 else:
-    resolve_cost = {"exceptional":0,"success":0,"fail":1,"crit":2}[r.outcome]
+    resolve_cost = {"exceptional": 0, "success": 0, "fail": 1, "crit": 2}[r.outcome]
 
-if r.outcome in ("fail","crit") and minion_threatened and chr.minions > 0:
+if r.outcome in ("fail", "crit") and minion_threatened and chr.minions > 0:
     sacrifice_minion(defender)  # absorbs exactly 1, once/roll
     resolve_cost -= 1
 
 defender.resolve = max(0, defender.resolve - resolve_cost)
 if defender.resolve == 0:
     # apply_affliction then check (Tactics elaboration §13)
-    apply_affliction(defender, name=chosen, permanent= (r.critical_failure and defender.rank_like),
-                     recovery="scene", location=roll_hit_location(defender) if not mental else None)
+    apply_affliction(
+        defender,
+        name=chosen,
+        permanent=(r.critical_failure and defender.rank_like),
+        recovery="scene",
+        location=roll_hit_location(defender) if not mental else None,
+    )
     defender.resolve = defender.resolve_max  # restored after affliction (§13)
     check = affliction_check(defender, "endurance" if physical else "intellect")
     # success→stunned (needs recover), exceptional→fine, fail→out, crit+permanent→fatal
