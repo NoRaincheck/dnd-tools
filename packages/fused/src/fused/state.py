@@ -20,9 +20,19 @@ from pathlib import Path
 from typing import Any
 
 from dnd_campaign.state import CampaignState
+from dnd_tools.dice import roll_dice
 from dnd_tools.dice import seed as dice_seed
 
-from .models import CharacterTraits, Effect, Scene
+from .models import (
+    CONSEQUENCE_TABLE,
+    EFFECT_TICKS,
+    CharacterTraits,
+    Clock,
+    Effect,
+    EffectLevel,
+    Position,
+    Scene,
+)
 
 
 class FusedState:
@@ -46,6 +56,11 @@ class FusedState:
         self.active_scene_id: str | None = None
         self.effects: list[Effect] = []
         self._effect_counter: int = 0
+        # joint SRD: clocks + position/effect gates + stress
+        self.clocks: dict[str, Clock] = {}
+        self._pending: dict[str, dict[str, str]] = {}  # actor -> {action, position, effect}
+        self._stress: dict[str, int] = {}  # actor -> stress 0-9
+        self._stress_max: int = 9
 
         # --- event log layout ---
         # bundle_root is the campaign directory: events.jsonl + snapshots/ + manifest.json + projections/
@@ -112,6 +127,257 @@ class FusedState:
             events_path=self.event_log_path,
         )
 
+    # -- clocks (joint SRD beats→clocks) ---------------------------------
+    def set_clock(self, name: str, segments: int = 6, kind: str = "obstacle") -> Clock:
+        clk = self.clocks.get(name)
+        if clk:
+            clk.segments = int(segments)
+            clk.kind = kind
+        else:
+            clk = Clock(name=name, segments=int(segments), kind=kind)
+            self.clocks[name] = clk
+        # also mirror into current scene clocks if active
+        cur = self.current_scene()
+        if cur is not None and not any(c.name == name for c in cur.clocks):
+            cur.clocks.append(Clock(name=name, segments=int(segments), kind=kind, ticks=clk.ticks))
+        self.record_effect(
+            "clock-set",
+            "GM",
+            f"Clock {name} {clk.ticks}/{clk.segments}",
+            payload={"name": name, "segments": segments, "kind": kind, "ticks": clk.ticks},
+        )
+        return clk
+
+    def tick_clock(self, name: str, ticks: int) -> dict[str, Any]:
+        clk = self.clocks.get(name)
+        if not clk:
+            clk = self.set_clock(name)
+        before = clk.ticks
+        clk.add_ticks(int(ticks))
+        # sync scene copy
+        for s in self.scenes:
+            for c in s.clocks:
+                if c.name == name:
+                    c.ticks = clk.ticks
+        self.record_effect(
+            "clock-tick",
+            "GM",
+            f"Clock {name} {before}→{clk.ticks}/{clk.segments}",
+            payload={
+                "name": name,
+                "ticks": int(ticks),
+                "before": before,
+                "after": clk.ticks,
+                "completed": clk.completed,
+            },
+        )
+        return {
+            "name": name,
+            "before": before,
+            "after": clk.ticks,
+            "completed": clk.completed,
+            "segments": clk.segments,
+        }
+
+    def get_clock(self, name: str) -> Clock | None:
+        return self.clocks.get(name)
+
+    def visualize_clocks(self) -> str:
+        if not self.clocks:
+            return "(no clocks)"
+        lines = []
+        for k, v in self.clocks.items():
+            filled = "■" * v.ticks + "□" * (v.segments - v.ticks)
+            lines.append(f"{k} [{v.kind}] {filled} {v.ticks}/{v.segments} {'✓' if v.completed else ''}")
+        return "\n".join(lines)
+
+    # -- position/effect gate (must precede action_roll) -------------------
+    def set_position_and_effect(self, actor: str, action: str, position: str, effect: str) -> dict[str, Any]:
+        pos = position.lower()
+        eff = effect.lower()
+        if pos not in {p.value for p in Position}:
+            raise ValueError(f"position must be one of {[p.value for p in Position]}, got {position}")
+        if eff not in {e.value for e in EffectLevel}:
+            raise ValueError(f"effect must be one of {[e.value for e in EffectLevel]}, got {effect}")
+        self._pending[actor] = {"action": action, "position": pos, "effect": eff}
+        self.campaign.inner.add_transcript(f"[gate {actor}] {action} {pos}/{eff}")
+        return {"valid": True, "actor": actor, "action": action, "position": pos, "effect": eff}
+
+    def _clear_pending(self, actor: str) -> None:
+        self._pending.pop(actor, None)
+
+    # -- gated resolution (Blades-style pool over dnd_tools dice) ----------
+    def action_roll(
+        self,
+        actor: str,
+        clock: str | None = None,
+        _pending_action: str | None = None,
+        _pending_position: str | None = None,
+        _pending_effect: str | None = None,
+    ) -> dict[str, Any]:
+        pending = self._pending.get(actor, {})
+        action = _pending_action or pending.get("action")
+        position = _pending_position or pending.get("position")
+        effect = _pending_effect or pending.get("effect")
+        if not action or not position or not effect:
+            return {
+                "valid": False,
+                "reason": "Position/effect not set. Call set_position_and_effect(actor, action, position, effect) before action_roll.",
+                "hint": "set_position_and_effect(actor='A', action='Prowl', position='risky', effect='standard')",
+            }
+        # derive pool: baseline allows zero-dice 2d6kL for traitless/weak actors, caps at 4
+        traits = self.traits_registry.get(actor)
+        base = 0
+        if traits:
+            base = min(4, len(traits.traits) // 2 + len(traits.favored_skills) // 3)
+        pool = base
+        # zero-dice case
+        if pool <= 0:
+            rolls = [roll_dice("1d6"), roll_dice("1d6")]
+            highest = min(rolls)
+            critical = False
+            outcome = "failure" if highest <= 3 else "partial" if highest <= 5 else "success"
+            # zero dice cannot crit in blades — enforce
+            critical = False
+        else:
+            rolls = [roll_dice("1d6") for _ in range(pool)]
+            highest = max(rolls)
+            crit_count = rolls.count(6)
+            critical = crit_count >= 2
+            if critical:
+                outcome = "critical"
+            elif highest == 6:
+                outcome = "success"
+            elif highest >= 4:
+                outcome = "partial"
+            else:
+                outcome = "failure"
+        # consequence per table
+        if outcome in ("success", "critical"):
+            consequence: list[str] = []
+        elif outcome == "partial":
+            consequence = list(CONSEQUENCE_TABLE[position]["partial"])
+        else:
+            consequence = list(CONSEQUENCE_TABLE[position]["failure"])
+        # ticks
+        base_ticks = EFFECT_TICKS.get(effect, 2)
+        if critical:
+            # +1 tier bump
+            order = ["zero", "limited", "standard", "great", "extreme"]
+            try:
+                idx = order.index(effect)
+                bumped = order[min(len(order) - 1, idx + 1)]
+                ticks = EFFECT_TICKS[bumped]
+            except ValueError:
+                ticks = base_ticks + 1
+        else:
+            ticks = base_ticks
+        if outcome == "partial" and any("reduced effect" in c for c in consequence):
+            ticks = max(0, ticks - 1)
+        if outcome == "failure":
+            ticks = 0
+        # tick clock if supplied
+        clock_info = None
+        if clock:
+            if clock not in self.clocks:
+                self.set_clock(clock, segments=6)
+            before = self.clocks[clock].ticks
+            self.clocks[clock].add_ticks(ticks)
+            # sync scene copy
+            for s in self.scenes:
+                for c in s.clocks:
+                    if c.name == clock:
+                        c.ticks = self.clocks[clock].ticks
+            clock_info = {
+                "clock": clock,
+                "ticks": ticks,
+                "before": before,
+                "after": self.clocks[clock].ticks,
+                "completed": self.clocks[clock].completed,
+            }
+        payload = {
+            "valid": True,
+            "actor": actor,
+            "action": action,
+            "position": position,
+            "effect": effect,
+            "pool": pool,
+            "rolls": rolls,
+            "highest": highest,
+            "critical": critical,
+            "outcome": outcome,
+            "consequence": consequence,
+            "consequence_severity": position,
+            "ticks": ticks,
+            "clock": clock_info,
+            "requires_resistance": len(consequence) > 0,
+        }
+        # record as effect so history captures the roll
+        self.record_effect(
+            "action-roll",
+            actor,
+            f"{action} {position}/{effect} → {outcome} (highest {highest}, ticks {ticks})",
+            payload={
+                "action_roll": payload,
+                "position": position,
+                "effect": effect,
+                "outcome": outcome,
+                "ticks": ticks,
+                "clock": clock,
+            },
+        )
+        self._clear_pending(actor)
+        self.campaign.inner.add_transcript(f"[action {actor}] {payload}")
+        return payload
+
+    def resistance_roll(self, actor: str, attribute: str = "Resolve") -> dict[str, Any]:
+        attr = attribute.capitalize()
+        rating = 2  # baseline; could derive from traits
+        # roll = roll pool (like blades Insight/Prowess/Resolve) — simple 1d6 pool
+        ch = self.traits_registry.get(actor)
+        if ch and attr.lower() in [s.lower() for s in ch.favored_skills]:
+            rating = 3
+        rolls = [roll_dice("1d6") for _ in range(max(1, rating))]
+        highest = max(rolls)
+        critical = rolls.count(6) >= 2
+        cost = 6 - highest
+        if critical:
+            cost = max(0, cost - 1)  # clear 1
+        before = self._stress.get(actor, 0)
+        after = min(self._stress_max, before + cost)
+        # trauma gate: overflow would be stress>max, but we cap and mark trauma notion via effect
+        self._stress[actor] = after
+        self.campaign.inner.add_transcript(f"[resist {actor}] {highest} cost {cost} stress {before}->{after}")
+        self.record_effect(
+            "resistance-roll",
+            actor,
+            f"Resist with {attr}: {highest} → {cost} stress",
+            payload={
+                "attribute": attr,
+                "highest": highest,
+                "cost": cost,
+                "before": before,
+                "after": after,
+                "critical": critical,
+            },
+        )
+        return {
+            "actor": actor,
+            "attribute": attr,
+            "highest": highest,
+            "rolls": rolls,
+            "cost": cost,
+            "before": before,
+            "after": after,
+            "critical": critical,
+        }
+
+    def mark_stress(self, actor: str, delta: int) -> dict[str, Any]:
+        before = self._stress.get(actor, 0)
+        after = max(0, min(self._stress_max, before + int(delta)))
+        self._stress[actor] = after
+        return {"actor": actor, "before": before, "after": after, "delta": delta}
+
     # -- traits --------------------------------------------------------
     def register_traits(self, traits: CharacterTraits) -> None:
         self.traits_registry[traits.name] = traits
@@ -129,6 +395,16 @@ class FusedState:
 
     # -- scenes --------------------------------------------------------
     def add_scene(self, scene: Scene) -> Scene:
+        # beats → clocks: if beats exist but no explicit clocks, create a default 6-clock for the objective
+        if scene.beats and not scene.clocks:
+            # one clock per scene seeded from beats length (beats→segments heuristic)
+            segs = 6 if len(scene.beats) <= 3 else 8
+            scene.clocks.append(Clock(name=f"{scene.scene_id}-progress", segments=segs, kind="obstacle"))
+            for c in scene.clocks:
+                self.clocks[c.name] = Clock(name=c.name, segments=c.segments, kind=c.kind, ticks=c.ticks)
+        else:
+            for c in scene.clocks:
+                self.clocks[c.name] = Clock(name=c.name, segments=c.segments, kind=c.kind, ticks=c.ticks)
         self.scenes.append(scene)
         self.active_scene_id = scene.scene_id
         self.campaign.campaign_meta["scenes"] = len(self.scenes)
@@ -219,7 +495,7 @@ class FusedState:
         self._update_manifest()
         return eff
 
-    # -- snapshot / restore (includes traits + scenes + effects) -------
+    # -- snapshot / restore (includes traits + scenes + effects + clocks) -------
     def snapshot(self) -> dict[str, Any]:
         from dataclasses import asdict
 
@@ -231,6 +507,8 @@ class FusedState:
             "effects": [asdict(e) for e in self.effects],
             "active_scene_id": self.active_scene_id,
             "effect_counter": self._effect_counter,
+            "clocks": {k: asdict(v) for k, v in self.clocks.items()},
+            "stress": dict(self._stress),
         }
 
     def restore(self, snap: dict[str, Any]) -> None:
@@ -238,6 +516,7 @@ class FusedState:
         dice_seed(self.seed)
         self.campaign.restore(snap.get("campaign_snapshot", {}))
         self.traits_registry = {k: CharacterTraits(**v) for k, v in snap.get("traits", {}).items()}
+        from .models import Clock as _Clock
         from .models import SceneStatus
 
         scenes: list[Scene] = []
@@ -247,11 +526,42 @@ class FusedState:
                     d["status"] = SceneStatus(d["status"])
                 except Exception:
                     d["status"] = SceneStatus.planned
+            # clocks may be list of dicts — rebuild
+            if "clocks" in d and isinstance(d["clocks"], list):
+                rebuilt = []
+                for c in d["clocks"]:
+                    if isinstance(c, dict):
+                        try:
+                            rebuilt.append(_Clock(**c))
+                        except Exception:  # noqa: S112
+                            continue
+                    elif isinstance(c, _Clock):
+                        rebuilt.append(c)
+                d["clocks"] = rebuilt
             scenes.append(Scene(**d))
         self.scenes = scenes
         self.effects = [Effect(**e) for e in snap.get("effects", [])]
         self.active_scene_id = snap.get("active_scene_id")
         self._effect_counter = int(snap.get("effect_counter", len(self.effects)))
+        # clocks
+        raw_clocks = snap.get("clocks", {})
+        self.clocks = {}
+        for k, v in raw_clocks.items():
+            if isinstance(v, dict):
+                try:
+                    self.clocks[k] = _Clock(**v)
+                except Exception:  # noqa: S112
+                    continue
+            elif isinstance(v, _Clock):
+                self.clocks[k] = v
+        # if clocks missing but scenes have clocks, hydrate
+        if not self.clocks:
+            for s in self.scenes:
+                for c in s.clocks:
+                    if c.name not in self.clocks:
+                        self.clocks[c.name] = Clock(name=c.name, segments=c.segments, kind=c.kind, ticks=c.ticks)
+        self._stress = dict(snap.get("stress", {}))
+        self._pending = {}
 
     # -- file snapshot helpers --------------------------------------------
     def take_snapshot(self, seq: int | None = None) -> Path:
@@ -384,6 +694,7 @@ class FusedState:
         elif ce_type == "fused.scene.created":
             scene_data = payload.get("scene")
             if scene_data and not any(s.scene_id == scene_data.get("scene_id") for s in self.scenes):
+                from .models import Clock as _ClkScene
                 from .models import SceneStatus
 
                 if isinstance(scene_data.get("status"), str):
@@ -391,10 +702,28 @@ class FusedState:
                         scene_data["status"] = SceneStatus(scene_data["status"])
                     except Exception:
                         scene_data["status"] = SceneStatus.planned
+                # clocks are stored as dicts via asdict — rebuild to Clock objects
+                if isinstance(scene_data.get("clocks"), list):
+                    rebuilt_clocks: list[_ClkScene] = []
+                    for c in scene_data.get("clocks", []):
+                        if isinstance(c, dict):
+                            try:
+                                rebuilt_clocks.append(_ClkScene(**c))
+                            except Exception:  # noqa: S112
+                                continue
+                        elif isinstance(c, _ClkScene):
+                            rebuilt_clocks.append(c)
+                    scene_data["clocks"] = rebuilt_clocks
                 try:
                     sc = Scene(**scene_data)
                     self.scenes.append(sc)
                     self.active_scene_id = sc.scene_id
+                    # hydrate global clocks dict from scene clocks (beats→clock)
+                    for c in sc.clocks:
+                        if c.name not in self.clocks:
+                            self.clocks[c.name] = _ClkScene(
+                                name=c.name, segments=c.segments, ticks=c.ticks, kind=c.kind
+                            )
                 except Exception:
                     pass
             eff = Effect(
@@ -414,7 +743,135 @@ class FusedState:
                     break
             self._effect_counter = max(self._effect_counter, len(self.effects))
         else:
-            # generic effect
+            # generic effect — also hydrate clocks/stress if this was a clock effect
+            if kind in ("clock-set", "clock-tick"):
+                name = str(payload.get("name", ""))
+                if name:
+                    if kind == "clock-set":
+                        from .models import Clock as _Clk
+
+                        segs = int(payload.get("segments", 6))
+                        kind_s = str(payload.get("kind", "obstacle"))
+                        ticks_v = int(payload.get("ticks", 0))
+                        self.clocks[name] = _Clk(name=name, segments=segs, kind=kind_s, ticks=ticks_v)
+                        for s in self.scenes:
+                            for c in s.clocks:
+                                if isinstance(c, dict):
+                                    if c.get("name") == name:
+                                        c["segments"] = segs
+                                        c["kind"] = kind_s
+                                        c["ticks"] = ticks_v
+                                        break
+                                elif c.name == name:
+                                    c.segments = segs
+                                    c.kind = kind_s
+                                    c.ticks = ticks_v
+                                    break
+                    elif kind == "clock-tick":
+                        clk = self.clocks.get(name)
+                        if clk:
+                            clk.add_ticks(int(payload.get("ticks", 0)))
+                            for s in self.scenes:
+                                for c in s.clocks:
+                                    if isinstance(c, dict):
+                                        if c.get("name") == name:
+                                            c["ticks"] = clk.ticks
+                                            break
+                                    elif c.name == name:
+                                        c.ticks = clk.ticks
+                                        break
+                        elif "after" in payload:
+                            # fallback: create clock with after ticks if missing (replay before snapshot)
+                            from .models import Clock as _Clk2
+
+                            segs2 = int(payload.get("segments", 6))
+                            self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=int(payload.get("after", 0)))
+            elif kind == "action-roll":
+                # hydrate clock ticks buried in action-roll payload (see Findings #1)
+                # payload is {"action_roll": {..., "clock": {"clock": name, "ticks": n, ...}}, "clock": name, "ticks": n}
+                try:
+                    ar = payload.get("action_roll")
+                    clock_name: str | None = None
+                    ticks_val: int | None = None
+                    clock_info: dict[str, Any] | None = None
+                    if isinstance(ar, dict):
+                        ci = ar.get("clock")
+                        if isinstance(ci, dict):
+                            clock_info = ci
+                            clock_name = str(ci.get("clock") or ci.get("name") or "")
+                            tv = ci.get("ticks")
+                            if tv is not None:
+                                ticks_val = int(tv)
+                        # fallback if clock_info missing but ar has clock string
+                        if not clock_name and isinstance(ar.get("clock"), str):
+                            clock_name = str(ar.get("clock"))
+                            if ticks_val is None and ar.get("ticks") is not None:
+                                ticks_val = int(ar.get("ticks"))
+                    if not clock_name and isinstance(payload.get("clock"), str):
+                        clock_name = str(payload.get("clock"))
+                    if ticks_val is None and payload.get("ticks") is not None:
+                        try:
+                            ticks_val = int(payload.get("ticks"))
+                        except Exception:
+                            ticks_val = None
+                    # also consider before/after fallback for creation
+                    after_val = None
+                    if isinstance(clock_info, dict) and clock_info.get("after") is not None:
+                        try:
+                            after_val = int(clock_info.get("after"))
+                        except Exception:
+                            after_val = None
+                    if clock_name and ticks_val is not None and ticks_val != 0:
+                        from .models import Clock as _ClkAR
+
+                        clk2 = self.clocks.get(clock_name)
+                        if clk2 is None:
+                            # create clock if missing (standard 6)
+                            segs_fallback = 6
+                            if isinstance(clock_info, dict) and clock_info.get("segments") is not None:
+                                try:
+                                    segs_fallback = int(clock_info.get("segments"))
+                                except Exception:
+                                    segs_fallback = 6
+                            # if after is known, create with before+ticks already reflected, else ticks
+                            init_ticks = 0
+                            # set to 0 then add ticks to respect capping
+                            clk2 = _ClkAR(name=clock_name, segments=segs_fallback, ticks=init_ticks)
+                            self.clocks[clock_name] = clk2
+                            # also ensure scene copy exists
+                            cur = self.current_scene()
+                            if cur is not None and not any(
+                                (c.get("name") == clock_name if isinstance(c, dict) else c.name == clock_name)
+                                for c in cur.clocks
+                            ):
+                                cur.clocks.append(_ClkAR(name=clock_name, segments=segs_fallback, ticks=0))
+                        # apply ticks delta
+                        clk2.add_ticks(int(ticks_val))
+                        # sync scene copies
+                        for s in self.scenes:
+                            for c in s.clocks:
+                                if isinstance(c, dict):
+                                    if c.get("name") == clock_name:
+                                        c["ticks"] = clk2.ticks
+                                        break
+                                elif c.name == clock_name:
+                                    c.ticks = clk2.ticks
+                                    break
+                        # if after_val indicates a mismatch (e.g., old log had absolute after), ensure we converge to after
+                        if after_val is not None and clk2.ticks != after_val and clk2.ticks < after_val:
+                            # we had a missing clock; just set to after directly
+                            clk2.ticks = min(clk2.segments, max(0, after_val))
+                            for s in self.scenes:
+                                for c in s.clocks:
+                                    if isinstance(c, dict):
+                                        if c.get("name") == clock_name:
+                                            c["ticks"] = clk2.ticks
+                                            break
+                                    elif c.name == clock_name:
+                                        c.ticks = clk2.ticks
+                                        break
+                except Exception:
+                    pass
             eff = Effect(
                 effect_id=eid,
                 scene_id=scene_id,

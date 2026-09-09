@@ -580,59 +580,59 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Clue:
-    id: str                          # "warehouse_residue"
-    scene: str                       # "warehouse_office"
-    kind: str                        # core|alternate|floating|leveraged|pipe|restricted|timed
-    abilities: list[str]             # ["Evidence Collection", "Forensic Entomology"]
-    cost: int = 0                    # 0 for core, 1|2 for special benefits
-    benefit: str | None = None       # "lab-grown strain → forward leap to cryo-lab"
+    id: str  # "warehouse_residue"
+    scene: str  # "warehouse_office"
+    kind: str  # core|alternate|floating|leveraged|pipe|restricted|timed
+    abilities: list[str]  # ["Evidence Collection", "Forensic Entomology"]
+    cost: int = 0  # 0 for core, 1|2 for special benefits
+    benefit: str | None = None  # "lab-grown strain → forward leap to cryo-lab"
     prerequisite: str | None = None  # for leveraged: clue id whose citation unlocks this
-    timing: dict | None = None       # for Timed: {"delay_scenes": 1, "trigger": "lab_callback"}
-    passive: bool = False            # auto-give on entry if True, pacing-dependent otherwise
-    simple_search: bool = False      # no ability needed if True
+    timing: dict | None = None  # for Timed: {"delay_scenes": 1, "trigger": "lab_callback"}
+    passive: bool = False  # auto-give on entry if True, pacing-dependent otherwise
+    simple_search: bool = False  # no ability needed if True
 
 
 @dataclass
 class Scene:
     name: str
-    kind: str                        # introductory|core|alternate|antagonist_reaction|hazard|sub_plot|conclusion|hybrid
+    kind: str  # introductory|core|alternate|antagonist_reaction|hazard|sub_plot|conclusion|hybrid
     lead_ins: list[str] = field(default_factory=list)
     lead_outs: list[str] = field(default_factory=list)
     clues: list[Clue] = field(default_factory=list)
-    hazard: dict | None = None       # {type, health_cost, stability_cost}
-    antagonist: dict | None = None   # stat block ref if fighting/contest here
+    hazard: dict | None = None  # {type, health_cost, stability_cost}
+    antagonist: dict | None = None  # stat block ref if fighting/contest here
 
 
 @dataclass
 class InvestigativeRating:
     ability: str
-    rating: int                      # ≥0; ≥1 to use; 1-2 is workhorse, 3-4 is specialist
-    pool: int                        # starts == rating, refreshed end-of-case
+    rating: int  # ≥0; ≥1 to use; 1-2 is workhorse, 3-4 is specialist
+    pool: int  # starts == rating, refreshed end-of-case
 
 
 @dataclass
 class GeneralAbilityState:
     ability: str
-    rating: int                      # 0..N; cherry triggers at 8; Health/Stability may go negative
-    pool: int                        # starts == rating, 24h refresh for physical subset
-    cherry_unlocked: bool = False    # rating >= 8
+    rating: int  # 0..N; cherry triggers at 8; Health/Stability may go negative
+    pool: int  # starts == rating, 24h refresh for physical subset
+    cherry_unlocked: bool = False  # rating >= 8
 
 
 @dataclass
 class GumshoeCharacter:
     name: str
     concept: str
-    drive: str                       # "Altruism", "Curiosity", etc.
+    drive: str  # "Altruism", "Curiosity", etc.
     investigative: dict[str, InvestigativeRating] = field(default_factory=dict)
     general: dict[str, GeneralAbilityState] = field(default_factory=dict)
     # Health/Stability are just general abilities but surfaced for convenience
-    mental_illness: str | None = None   # PTSD|Delusion|Homicidal Mania|...
+    mental_illness: str | None = None  # PTSD|Delusion|Homicidal Mania|...
     shaken: bool = False
-    hurt: bool = False                # Health 0..-5
-    seriously_wounded: bool = False   # Health -6..-11
+    hurt: bool = False  # Health 0..-5
+    seriously_wounded: bool = False  # Health -6..-11
     hospital_days: int = 0
     # roster/bookkeeping
-    build_points_earned: int = 0      # +2 per attended session with this incarnation
+    build_points_earned: int = 0  # +2 per attended session with this incarnation
     last_refresh_case_id: str | None = None
 
 
@@ -641,13 +641,13 @@ class GumshoeState:
     characters: dict[str, GumshoeCharacter]
     scenes: dict[str, Scene]
     current_scene: str | None = None
-    collected: set[str] = field(default_factory=set)   # clue ids already given
+    collected: set[str] = field(default_factory=set)  # clue ids already given
     pool_history: list[dict] = field(default_factory=list)
     tool_trace: list[dict] = field(default_factory=list)  # {tool, args, result, actor, round}
     transcript: list[dict] = field(default_factory=list)
     cases_complete: int = 0
-    forgiving: bool = False            # campaign switch for rating-0 tests
-    lucky_shot_used: bool = False      # once per episode, entire cast
+    forgiving: bool = False  # campaign switch for rating-0 tests
+    lucky_shot_used: bool = False  # once per episode, entire cast
     # mirrors GameState seed/map when mixing with grid
     seed: int = 0
     round: int = 0
@@ -659,7 +659,7 @@ class Opponent:
     abilities: dict[str, int] = field(default_factory=dict)  # Health/Scuffling/Shooting etc.
     hit_threshold: int = 3
     armor: dict[str, int] = field(default_factory=lambda: {"bullets": 0, "blades": 0})
-    weapon_mod: dict[str, int] = field(default_factory=dict) # "pistol": 0, "sword": +1
+    weapon_mod: dict[str, int] = field(default_factory=dict)  # "pistol": 0, "sword": +1
     alertness_mod: int = 0
     stealth_mod: int = 0
     attack_pattern: list[int] = field(default_factory=list)  # fallback per-round spends
@@ -675,9 +675,11 @@ Add deterministic helpers seeded by `GumshoeState.seed` (re-seeded on restore):
 def roll_1d6() -> int:
     return _rng.randint(1, 6)
 
+
 def roll_test(spend: int) -> dict:
     die = roll_1d6()
     return {"die": die, "spend": spend, "total": die + spend}
+
 
 def consciousness_roll(current_health: int) -> dict:
     """Difficulty = abs(current_health); may voluntarily lower health to add +N."""
@@ -685,6 +687,7 @@ def consciousness_roll(current_health: int) -> dict:
     # caller handles optional voluntary lowering before roll
     die = roll_1d6()
     return {"die": die, "difficulty": difficulty, "needs_voluntary": False}
+
 
 def stability_test_total(spend: int) -> dict:
     die = roll_1d6()
@@ -818,7 +821,8 @@ def gather_clue(character: GumshoeCharacter, scene: Scene, ability: str | None):
         # simple search path
         clue = scene.simple_search_clue(detail)
         if clue:
-            mark_collected(clue); return {"automatic": True, "clue": clue.text, "cost": 0}
+            mark_collected(clue)
+            return {"automatic": True, "clue": clue.text, "cost": 0}
         return {"error": "no simple-search clue at this detail"}
 
     # inconspicuous path when moving through transitional area
@@ -834,7 +838,8 @@ def gather_clue(character: GumshoeCharacter, scene: Scene, ability: str | None):
 
     core = next((c for c in matches if c.kind == "core" and c.cost == 0), None)
     if core:
-        collected.add(core.id); return {"automatic": True, "clue": core.text, "cost": 0, "offers": benefit_offers(matches)}
+        collected.add(core.id)
+        return {"automatic": True, "clue": core.text, "cost": 0, "offers": benefit_offers(matches)}
 
     # only non-core or restricted remains
     benefit = next((c for c in matches if c.cost in (1, 2)), None)
@@ -842,10 +847,12 @@ def gather_clue(character: GumshoeCharacter, scene: Scene, ability: str | None):
         return {"automatic": True, "clue": benefit.text, "cost": benefit.cost, "requires_spend": benefit.cost}
     return {"error": "clue type requires spend_investigative"}
 
+
 def spend_investigative(character, ability, cost, benefit_id):
-    if not (1 <= cost <= 2): return {"error": "benefit cost must be 1 or 2"}
+    if not (1 <= cost <= 2):
+        return {"error": "benefit cost must be 1 or 2"}
     benefit = get_benefit(benefit_id)
-    if benefit is None:      # no benefit to buy — cost is 0 per SRD
+    if benefit is None:  # no benefit to buy — cost is 0 per SRD
         return {"automatic": True, "cost": 0, "note": "no benefit available; pool unchanged"}
     if character.investigative[ability].pool < cost:
         return {"error": "insufficient pool"}
@@ -856,6 +863,7 @@ def spend_investigative(character, ability, cost, benefit_id):
 
 # General — blind Difficulty, spend committed before seeing it
 difficulty = 4  # GM sets blind via set_difficulty; 2..8 range
+
 
 def general_test(character, ability, spend, difficulty_hidden=True):
     if character.general[ability].rating == 0 and not forgiving and spend != 0:
@@ -884,7 +892,12 @@ def toll_test(character, ability, difficulty=6):
     die = roll_1d6()  # rolled BEFORE spend is known
     needed = max(0, difficulty - die)
     # player then chooses to spend needed or to fail
-    return {"die": die, "difficulty": difficulty, "needed": needed, "prompt": f"spend {needed} to succeed, or fail and keep pool"}
+    return {
+        "die": die,
+        "difficulty": difficulty,
+        "needed": needed,
+        "prompt": f"spend {needed} to succeed, or fail and keep pool",
+    }
 ```
 
 ```

@@ -271,36 +271,72 @@ No file under `dnd-tools/` is edited for S&S. The `sword-and-sorcery` package is
 
 from dataclasses import dataclass, field
 
-ANCESTRIES = ["Human","Elf","Dwarf","Gnome","Orc","Catfolk"]
-BACKGROUNDS = ["Noble","Sage","Thief","Soldier","Tracker","Entertainer"]
-PATRONS = ["Mage-King Tholex XI", ...]   # d6 table
-QUESTS  = ["Slay the Helvella Dragon", ...]
-LOCATIONS = ["The Wilderlands", ...]     # includes Fröstfell
+ANCESTRIES = ["Human", "Elf", "Dwarf", "Gnome", "Orc", "Catfolk"]
+BACKGROUNDS = ["Noble", "Sage", "Thief", "Soldier", "Tracker", "Entertainer"]
+PATRONS = ["Mage-King Tholex XI", ...]  # d6 table
+QUESTS = ["Slay the Helvella Dragon", ...]
+LOCATIONS = ["The Wilderlands", ...]  # includes Fröstfell
 THREATS = ["The Necromancer", ...]
-SPELL_TABLE: dict[int, list[str]] = {0:[...],1:[...],2:[...],3:[...]}
-MONSTER_TABLE: dict[str, dict] = {"Easy":{"HP":5,"DMG":2},"Medium":{"HP":10,"DMG":3},"Hard":{"HP":20,"DMG":4},"Deadly":{"HP":30,"DMG":6}}
+SPELL_TABLE: dict[int, list[str]] = {0: [...], 1: [...], 2: [...], 3: [...]}
+MONSTER_TABLE: dict[str, dict] = {
+    "Easy": {"HP": 5, "DMG": 2},
+    "Medium": {"HP": 10, "DMG": 3},
+    "Hard": {"HP": 20, "DMG": 4},
+    "Deadly": {"HP": 30, "DMG": 6},
+}
 
-def derived_hp(sns:int) -> int: return 3*sns
-def derived_sp(sns:int) -> int: return 10 - 2*sns
-def derived_wd(sns:int) -> int: return sns - 1
-def derived_en(sns:int) -> int: return sns + 3
+
+def derived_hp(sns: int) -> int:
+    return 3 * sns
+
+
+def derived_sp(sns: int) -> int:
+    return 10 - 2 * sns
+
+
+def derived_wd(sns: int) -> int:
+    return sns - 1
+
+
+def derived_en(sns: int) -> int:
+    return sns + 3
+
+
 def roll_sns_number(rng=None) -> int:  # 1d6 reroll 1 & 6 until 2-5
     ...
 
+
 @dataclass
 class SnSCharacter:
-    name: str; ancestry: str = "Human"; background: str = "Soldier"; sns: int = 3
-    hp: int = 0; hp_max: int = 0; sp: int = 0; sp_max: int = 0; wd: int = 0; en: int = 0
+    name: str
+    ancestry: str = "Human"
+    background: str = "Soldier"
+    sns: int = 3
+    hp: int = 0
+    hp_max: int = 0
+    sp: int = 0
+    sp_max: int = 0
+    wd: int = 0
+    en: int = 0
     spells_known: list[str] = field(default_factory=list)
     inventory: list[str] = field(default_factory=list)
-    pos: tuple[int,int,int] = (0,0,0); alive: bool = True; unconscious: bool = False
+    pos: tuple[int, int, int] = (0, 0, 0)
+    alive: bool = True
+    unconscious: bool = False
     # help gating
     _help_bonus: int = 0
 
+
 @dataclass
 class SnSMonster:
-    name: str; threat: str = "Medium"; hp:int=0; hp_max:int=0; dmg:int=0
-    pos: tuple[int,int,int] = (0,0,0); alive:bool=True; is_player:bool=False
+    name: str
+    threat: str = "Medium"
+    hp: int = 0
+    hp_max: int = 0
+    dmg: int = 0
+    pos: tuple[int, int, int] = (0, 0, 0)
+    alive: bool = True
+    is_player: bool = False
 ```
 
 Map to existing `Cell/Character` where possible: `SnSState` reuses `dnd_tools.models.Cell` and `dnd_tools.dice.seed` for determinism, but keeps a parallel `SnSState` rather than patching `GameState` fields (`ac/initiative_order` alias to `turn_order`/`initiative_order` for compat, but no `1d20`).
@@ -310,18 +346,26 @@ Map to existing `Cell/Character` where possible: `SnSState` reuses `dnd_tools.mo
 Add deterministic helper seeded by `SnSState.seed` via `dnd_tools.dice.seed`:
 
 ```python
-def roll_sns_check(sns:int, mode:str, dice_count:int=1) -> dict:
+def roll_sns_check(sns: int, mode: str, dice_count: int = 1) -> dict:
     rng = _rng()  # dnd_tools.dice._rng
-    rolls = [rng.randint(1,6) for _ in range(dice_count)]
+    rolls = [rng.randint(1, 6) for _ in range(dice_count)]
     successes, divine = 0, False
     for r in rolls:
         if r == sns:
-            divine = True; successes += 1
-        elif (mode=="swords" and r < sns) or (mode=="sorcery" and r > sns):
+            divine = True
             successes += 1
-    outcome = {0:"fail",1:"barely",2:"success",3:"critical"}[successes]
-    return {"rolls":rolls, "sns":sns, "mode":mode, "successes":successes,
-            "success":successes>=1, "divine_intervention":divine, "outcome":outcome}
+        elif (mode == "swords" and r < sns) or (mode == "sorcery" and r > sns):
+            successes += 1
+    outcome = {0: "fail", 1: "barely", 2: "success", 3: "critical"}[successes]
+    return {
+        "rolls": rolls,
+        "sns": sns,
+        "mode": mode,
+        "successes": successes,
+        "success": successes >= 1,
+        "divine_intervention": divine,
+        "outcome": outcome,
+    }
 ```
 
 Also `roll_weapon_damage(wd)` = `wd d6` keep max, `roll_spell_damage(level)` = `level d6` highest + `2*level`, `roll_d6(n)` — all via the same `_rng` for seed fidelity. Keep existing `roll_dice()` for 5e paths.
@@ -391,10 +435,15 @@ from tau_agent.harness import AgentHarness, AgentHarnessConfig
 
 tools = SnSTools(state)  # or SnSCampaignTools(SnSCampaignState(...))
 provider = make_tau_provider("http://127.0.0.1:1234/v1", "lm-studio")
-harness = AgentHarness(AgentHarnessConfig(
-    provider=provider, model="qwen3.6-35b-a3b-mtp",
-    system=GM_PROMPT, tools=_tools_to_agent_tools(tools), max_turns=6,
-))
+harness = AgentHarness(
+    AgentHarnessConfig(
+        provider=provider,
+        model="qwen3.6-35b-a3b-mtp",
+        system=GM_PROMPT,
+        tools=_tools_to_agent_tools(tools),
+        max_turns=6,
+    )
+)
 ```
 
 **Simulation loop** (`simulation.py : SnSSimulation`): keep `Simulation.run()` sensibility — `establish_turn_order` → `generate_adventure` (optional) → per-turn `check_character` → (optional `move` toward target) → `check_valid_attack_line` → `roll_check`/`attack`/`cast_spell` (`help` before roll, `divine_intervention` after exact) → `update_hp/sp` → `night_rest` between scenes → `<End Turn/>`. Monster turns are **not** LLM-attack rolls; they trigger **player avoidance** `roll_check(swords)` → `0→full DMG / 1→half / 2→avoid` (`simulation.py:198`). Campaign `Session.add_encounter()` initializes S&S parties + adventure, `run_encounter()` delegates to `SnSSimulation`, then `checkpoint()` + `prune_traces()`.
@@ -437,24 +486,24 @@ r = roll_sns_check(sns, ability)  # ability = swords (<) or sorcery (>)
 if r.divine_intervention:
     divine_intervention(character, question="What's really going on here?")
     # player may optionally: r = roll_sns_check(sns, new_ability)  # change action
-if r.outcome == "fail":          # 0
-    gm_worsens()                 # monster DMG if monster turn, or trap DMG, or narrative cost
+if r.outcome == "fail":  # 0
+    gm_worsens()  # monster DMG if monster turn, or trap DMG, or narrative cost
     if monster_turn:
         defender_hp -= monster_dmg  # via update_hp
-elif r.outcome == "barely":      # 1
-    gm_costs()                   # e.g. monster DMG//2, or complication
+elif r.outcome == "barely":  # 1
+    gm_costs()  # e.g. monster DMG//2, or complication
     if attack and r.success:
         dmg = roll_weapon_damage(wd)["damage"]  # still counts as success → damage
-elif r.outcome in ("success","critical"):  # 2,3
+elif r.outcome in ("success", "critical"):  # 2,3
     if attack:
         dmg = roll_weapon_damage(wd)["damage"]  # WD d6s keep highest
         defender_hp -= dmg
-    elif cast_spell and level>=1 and r.success:
+    elif cast_spell and level >= 1 and r.success:
         if r.success:
             sp -= level
             dmg = roll_spell_damage(level)["total"]  # highest+2*level, split if needed
     if r.outcome == "critical":
-        gm_extra_effect()       # e.g. disarm, extra info, free help
+        gm_extra_effect()  # e.g. disarm, extra info, free help
 ```
 
 ```

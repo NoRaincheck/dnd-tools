@@ -12,7 +12,7 @@ dev = [
 line-length = 120
 
 [tool.ruff.lint]
-ignore = ["BLE001", "S110", "E722"]
+ignore = ["BLE001", "S110", "S112", "E722"]
 
 [tool.ty.environment]
 python-version = "3.14"

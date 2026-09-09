@@ -1,14 +1,13 @@
-"""FusedTools — unified tool surface for fused campaign.
+"""FusedTools — unified tool surface for fused campaign (joint SRD).
 
-Delegates all dnd_tools.Tools via CampaignState inner, plus:
-  - traits: register_traits / get_traits / list_traits
-  - scenes: create_scene / get_scene / list_scenes / advance_scene_beat
-  - effects: record_effect / traverse_history / get_context
-  - creativity: delegated Triple-O tools (propose_triple_o etc. via inner TripleOTools)
-  - campaign: long_rest / short_rest / checkpoint etc. via CampaignTools
+Implements the ideal joint SRD (§3.5): minimal LLM-facing schemas (~16) with
+hard gates. Raw 5e tools (roll_attack etc.) remain internally via
+``base_tools`` for the heuristic Simulation but are *not* exposed in
+``tool_schemas`` — the LLM must go through
+``propose_triple_o → roll_triple_o → set_position_and_effect → action_roll → resistance_roll``.
 
-All mutations are logged to campaign.inner.tool_trace for audit.
-Canonical persistence is events.jsonl + snapshots (see events.py).
+All mutations log to ``campaign.inner.tool_trace`` and append to the canonical
+``events.jsonl`` via ``FusedState``.
 """
 
 from __future__ import annotations
@@ -29,14 +28,11 @@ class FusedTools:
         self.fstate = fstate
         self.base_tools = _BaseTools(fstate.campaign.inner)
         self.campaign_tools = _CampaignTools(fstate.campaign)
-        # Triple-O engine seeded from fused seed
         self.triple_o = TripleO(seed=fstate.seed)
         self.triple_tools = TripleOTools(self.triple_o)
-        # ensure trait registry is visible to triple_o via payloads
 
-    # -- delegation for paper tools --------------------------------------
+    # -- delegation (non-schema, for internal simulation/tests) ---------------
     def __getattr__(self, name: str) -> Any:
-        # try base tools first, then campaign tools, then triple
         if hasattr(self.base_tools, name):
             return getattr(self.base_tools, name)
         if hasattr(self.campaign_tools, name):
@@ -46,7 +42,6 @@ class FusedTools:
         raise AttributeError(name)
 
     def dispatch(self, name: str, args: dict[str, Any]) -> Any:
-        # fused-level tools first
         fused_names = {
             "register_traits",
             "get_traits",
@@ -59,21 +54,29 @@ class FusedTools:
             "traverse_history",
             "get_context",
             "summarize_fused",
+            "set_position_and_effect",
+            "action_roll",
+            "resistance_roll",
+            "mark_stress",
+            "set_clock",
+            "tick_clock",
+            "visualize_clocks",
+            "visualize_map",
+            "get_names_of_all_players",
+            "get_names_of_all_monsters",
+            "roll_initiative",
         }
         if name in fused_names and hasattr(self, name):
             return getattr(self, name)(**args)
-        # triple-o
         if hasattr(self.triple_tools, name):
             try:
                 return self.triple_tools.dispatch(name, args)
             except ValueError:
                 pass
-        # campaign
         try:
             return self.campaign_tools.dispatch(name, args)
         except Exception:
             pass
-        # base
         return self.base_tools.dispatch(name, args)
 
     # -- traits (separate from event state) --------------------------------
@@ -113,7 +116,6 @@ class FusedTools:
         self.fstate.register_traits(ct)
         res = {"name": name, "registered": True, "summary": ct.trait_summary()}
         self.fstate.campaign.inner.log_tool("register_traits", {"name": name}, res)
-        # FusedState.register_traits already appends canonical event; no extra record_effect here
         return res
 
     def get_traits(self, name: str) -> dict[str, Any]:
@@ -133,7 +135,7 @@ class FusedTools:
         self.fstate.campaign.inner.log_tool("list_traits", {}, r)
         return r
 
-    # -- scenes (narrative structure) ----------------------------------------
+    # -- scenes (narrative structure, beats→clocks) --------------------------
     def create_scene(
         self,
         scene_id: str,
@@ -144,10 +146,21 @@ class FusedTools:
         threat: str = "unknown",
         beats: list[str] | None = None,
         cast: list[str] | None = None,
+        clocks: list[dict[str, Any]] | None = None,
         seed: int | None = None,
     ) -> dict[str, Any]:
-        # seed defaults to fused seed + scenes count
         s_seed = seed if seed is not None else self.fstate.seed + len(self.fstate.scenes) + 1
+        from .models import Clock
+
+        clock_objs: list[Clock] = []
+        if clocks:
+            for c in clocks:
+                try:
+                    clock_objs.append(
+                        Clock(name=c["name"], segments=int(c.get("segments", 6)), kind=c.get("kind", "obstacle"))
+                    )
+                except Exception:  # noqa: S112
+                    continue
         sc = Scene(
             scene_id=scene_id,
             title=title,
@@ -157,12 +170,12 @@ class FusedTools:
             threat=threat,
             beats=list(beats or []),
             cast=list(cast or []),
+            clocks=clock_objs,
             seed=s_seed,
         )
         self.fstate.add_scene(sc)
         res = {"scene_id": scene_id, "title": title, "status": sc.status.value}
         self.fstate.campaign.inner.log_tool("create_scene", {"scene_id": scene_id}, res)
-        # FusedState.add_scene already appends canonical event; no extra record_effect here
         return res
 
     def get_scene(self, scene_id: str) -> dict[str, Any]:
@@ -189,14 +202,9 @@ class FusedTools:
     def advance_scene_beat(self, scene_id: str, note: str = "") -> dict[str, Any]:
         for s in self.fstate.scenes:
             if s.scene_id == scene_id:
-                # beats are narration steps; we pop or mark progress via status
                 if s.status == SceneStatus.planned:
                     s.status = SceneStatus.active
-                elif s.status == SceneStatus.active and len(s.beats) > 0:
-                    # resolve last beat as done (we treat beats as queued)
-                    pass
                 s.status = SceneStatus.active if s.status == SceneStatus.planned else s.status
-                # record as effect so OKF history captures narrative progression
                 self.fstate.record_effect(
                     "scene-beat", "GM", f"Advance {scene_id}: {note or s.title}", payload={"note": note}
                 )
@@ -205,6 +213,53 @@ class FusedTools:
                 return res
         res = {"found": False, "scene_id": scene_id}  # type: ignore[return-value]
         self.fstate.campaign.inner.log_tool("advance_scene_beat", {"scene_id": scene_id}, res)
+        return res
+
+    # -- clocks (joint SRD) -------------------------------------------------
+    def set_clock(self, name: str, segments: int = 6, kind: str = "obstacle") -> dict[str, Any]:
+        clk = self.fstate.set_clock(name, segments=int(segments), kind=kind)
+        res = {"name": clk.name, "segments": clk.segments, "ticks": clk.ticks, "kind": clk.kind}
+        self.fstate.campaign.inner.log_tool("set_clock", {"name": name, "segments": segments, "kind": kind}, res)
+        return res
+
+    def tick_clock(self, name: str, ticks: int) -> dict[str, Any]:
+        res = self.fstate.tick_clock(name, int(ticks))
+        self.fstate.campaign.inner.log_tool("tick_clock", {"name": name, "ticks": ticks}, res)
+        return res
+
+    def visualize_clocks(self) -> dict[str, Any]:
+        txt = self.fstate.visualize_clocks()
+        res = {
+            "ascii": txt,
+            "clocks": {
+                k: {"ticks": v.ticks, "segments": v.segments, "completed": v.completed}
+                for k, v in self.fstate.clocks.items()
+            },
+        }
+        self.fstate.campaign.inner.log_tool("visualize_clocks", {}, res)
+        return res
+
+    # -- position/effect gate + resolution (joint SRD) -----------------------
+    def set_position_and_effect(self, actor: str, action: str, position: str, effect: str) -> dict[str, Any]:
+        res = self.fstate.set_position_and_effect(actor, action, position, effect)
+        self.fstate.campaign.inner.log_tool(
+            "set_position_and_effect", {"actor": actor, "action": action, "position": position, "effect": effect}, res
+        )
+        return res
+
+    def action_roll(self, actor: str, clock: str | None = None) -> dict[str, Any]:
+        res = self.fstate.action_roll(actor, clock=clock)
+        self.fstate.campaign.inner.log_tool("action_roll", {"actor": actor, "clock": clock}, res)
+        return res
+
+    def resistance_roll(self, actor: str, attribute: str = "Resolve") -> dict[str, Any]:
+        res = self.fstate.resistance_roll(actor, attribute=attribute)
+        self.fstate.campaign.inner.log_tool("resistance_roll", {"actor": actor, "attribute": attribute}, res)
+        return res
+
+    def mark_stress(self, actor: str, delta: int) -> dict[str, Any]:
+        res = self.fstate.mark_stress(actor, int(delta))
+        self.fstate.campaign.inner.log_tool("mark_stress", {"actor": actor, "delta": delta}, res)
         return res
 
     # -- effects / history traversal -----------------------------------------
@@ -248,10 +303,23 @@ class FusedTools:
         self.fstate.campaign.inner.log_tool("summarize_fused", {}, s)
         return s
 
-    # -- schemas -------------------------------------------------------------
+    # -- sense (minimal) -----------------------------------------------------
+    def visualize_map(self) -> str:
+        out = self.base_tools.visualize_map()
+        return out
+
+    def get_names_of_all_players(self) -> list[str]:
+        return self.base_tools.get_names_of_all_players()
+
+    def get_names_of_all_monsters(self) -> list[str]:
+        return self.base_tools.get_names_of_all_monsters()
+
+    def roll_initiative(self) -> list[dict]:
+        return self.base_tools.roll_initiative()
+
+    # -- schemas (minimal LLM-facing, hides raw 5e tools) --------------------
     def tool_schemas(self) -> list[dict[str, Any]]:
-        base = self.base_tools.tool_schemas()
-        camp = [s for s in self.campaign_tools.tool_schemas() if s not in base]
+        # keep triple-o schemas as-is (propose/roll)
         trip = self.triple_tools.tool_schemas()
         extra: list[dict[str, Any]] = [
             {
@@ -301,7 +369,7 @@ class FusedTools:
                 "type": "function",
                 "function": {
                     "name": "create_scene",
-                    "description": "Create a narrative scene with objective, location, patron, threat, beats, cast.",
+                    "description": "Create a narrative scene with objective, location, patron, threat, beats, cast, and optional clocks [{name, segments, kind}]. Beats auto-create a default 6-clock if no clocks supplied. Beats are shorthand for clocks.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -313,6 +381,7 @@ class FusedTools:
                             "threat": {"type": "string"},
                             "beats": {"type": "array", "items": {"type": "string"}},
                             "cast": {"type": "array", "items": {"type": "string"}},
+                            "clocks": {"type": "array", "items": {"type": "object"}},
                             "seed": {"type": "integer"},
                         },
                         "required": ["scene_id", "title", "objective"],
@@ -348,6 +417,107 @@ class FusedTools:
                         "type": "object",
                         "properties": {"scene_id": {"type": "string"}, "note": {"type": "string"}},
                         "required": ["scene_id"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "set_clock",
+                    "description": "Create or update a progress clock (4/6/8 segments, kind obstacle/danger/project/healing/turf).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "segments": {"type": "integer"},
+                            "kind": {"type": "string", "enum": ["obstacle", "danger", "project", "healing", "turf"]},
+                        },
+                        "required": ["name", "segments"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "tick_clock",
+                    "description": "Tick a clock by N (1-5; completes at segments). Called after action_roll ticks or as GM move.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}, "ticks": {"type": "integer"}},
+                        "required": ["name", "ticks"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "visualize_clocks",
+                    "description": "Visualize all clocks as ascii bars.",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "set_position_and_effect",
+                    "description": "GATE: agree Position (controlled/risky/desperate) and Effect (limited/standard/great/zero/extreme) before action_roll. Required — action_roll will fail without this.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string"},
+                            "action": {
+                                "type": "string",
+                                "description": "Fiction action (e.g. Prowl, Skirmish, Attune, or freeform like 'sneak past')",
+                            },
+                            "position": {"type": "string", "enum": ["controlled", "risky", "desperate"]},
+                            "effect": {"type": "string", "enum": ["limited", "standard", "great", "zero", "extreme"]},
+                        },
+                        "required": ["actor", "action", "position", "effect"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "action_roll",
+                    "description": "Gated resolution: Blades-style pool (derived from Traits), zero-dice 2d6kL, critical on 2×6, 6 success /4-5 partial+consequence /1-3 fail+consequence where consequence severity=position. Ticks clock per effect (limited1/standard2/great3, crit+1, partial reduced -1). Requires set_position_and_effect first. Record tick via payload.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string"},
+                            "clock": {"type": "string", "description": "Optional clock to auto-tick on success"},
+                        },
+                        "required": ["actor"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "resistance_roll",
+                    "description": "Resist a consequence: roll attribute (Insight/Prowess/Resolve style; here generic Resolve). Cost = 6−high stress (crit clears 1). Reduces/negates consequence but costs stress.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string"},
+                            "attribute": {
+                                "type": "string",
+                                "enum": ["Insight", "Prowess", "Resolve", "insight", "prowess", "resolve"],
+                            },
+                        },
+                        "required": ["actor"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "mark_stress",
+                    "description": "Mark stress delta (positive = add). 0-9; trauma at overflow handled via fiction.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"actor": {"type": "string"}, "delta": {"type": "integer"}},
+                        "required": ["actor", "delta"],
                     },
                 },
             },
@@ -390,7 +560,7 @@ class FusedTools:
                 "type": "function",
                 "function": {
                     "name": "get_context",
-                    "description": "Get combined context for an actor: stable traits + recent effects + active scene.",
+                    "description": "Get combined context for an actor: stable traits + recent effects + active scene + clocks.",
                     "parameters": {
                         "type": "object",
                         "properties": {"actor": {"type": "string"}, "last_n": {"type": "integer"}},
@@ -406,10 +576,41 @@ class FusedTools:
                     "parameters": {"type": "object", "properties": {}, "required": []},
                 },
             },
+            # sense (minimal, map remains valuable for journalistic “where”)
+            {
+                "type": "function",
+                "function": {
+                    "name": "visualize_map",
+                    "description": "ASCII map (#=wall, upper=PC, lower=threat) for spatial sense.",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_names_of_all_players",
+                    "description": "List PC names.",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_names_of_all_monsters",
+                    "description": "List threat names.",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "roll_initiative",
+                    "description": "Roll initiative if using 5e turn order (optional in journalistic mode).",
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
         ]
-        # de-duplicate by name
-        seen = {s["function"]["name"] for s in base}
-        filtered_camp = [s for s in camp if s["function"]["name"] not in seen]
-        seen.update(s["function"]["name"] for s in filtered_camp)
+        # de-duplicate triple-o by name
+        seen = {s["function"]["name"] for s in extra}
         filtered_trip = [s for s in trip if s["function"]["name"] not in seen]
-        return base + filtered_camp + filtered_trip + extra
+        return extra + filtered_trip

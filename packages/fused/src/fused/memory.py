@@ -19,6 +19,10 @@ def summarize_fused(cstate: FusedState) -> dict[str, Any]:
         "monsters_alive": [k for k, c in cstate.campaign.inner.monsters.items() if c.alive],
         "round": cstate.campaign.inner.round,
         "turn": cstate.campaign.inner.current_actor(),
+        "clocks": {
+            k: {"ticks": v.ticks, "segments": v.segments, "completed": v.completed, "kind": v.kind}
+            for k, v in cstate.clocks.items()
+        },
         "bundle_root": str(cstate.bundle_root) if cstate.bundle_root else None,
         "event_log": str(cstate.event_log_path),
         "snapshots_dir": str(cstate.snapshots_dir),
