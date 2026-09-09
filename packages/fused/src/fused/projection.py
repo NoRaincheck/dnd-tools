@@ -63,11 +63,14 @@ def build_projection(
     """(Re)build SQLite projection from ``events.jsonl``. Idempotent.
 
     If ``db_path`` exists and ``overwrite`` is True, schema is dropped/recreated.
+    If ``overwrite`` is False and the DB already exists, it is left untouched.
     Returns path to DB. Raises if event validation fails.
     """
     ep = _pl.Path(events_path)
     db = _pl.Path(db_path)
     db.parent.mkdir(parents=True, exist_ok=True)
+    if not overwrite and db.exists():
+        return db
 
     # Remove existing DB atomically for overwrite idempotence if requested
     # Instead of deleting file, we open and DDL-drop so an existing handle sees new data.

@@ -328,16 +328,23 @@ class FusedState:
         if latest_snap is not None:
             fs.restore(latest_snap)
 
-        # replay events after snapshot
-        for idx, evt in enumerate(iter_events(ep)):
-            seq = idx
-            if seq <= latest_seq:
-                continue
-            if at_seq is not None and seq >= at_seq:
-                break
+        # replay events after snapshot — count non-snapshot events, not log index
+        # Snapshot events (fused.snapshot.taken) are appended to the log but do
+        # not increment self.effects / snapshot seq, so log index drifts from
+        # effect count when 3+ snapshots exist. Counting only non-snapshot
+        # events avoids duplicate replay (see PR review reproducer: 6 effects
+        # with snapshot_every=2 duplicated the last effect).
+        replayed = 0
+        for evt in iter_events(ep):
             if evt.get("type") == "fused.snapshot.taken":
                 continue
+            if replayed < latest_seq:
+                replayed += 1
+                continue
+            if at_seq is not None and replayed >= at_seq:
+                break
             fs._apply_event(evt)
+            replayed += 1
         return fs
 
     def _apply_event(self, evt: dict[str, Any]) -> None:
