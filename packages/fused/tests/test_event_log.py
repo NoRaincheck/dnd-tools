@@ -46,6 +46,47 @@ def test_snapshot_and_replay_is_idempotent():
         assert "Lyra" in fs2.traits_registry
 
 
+def test_snapshot_replay_with_three_plus_snapshots_no_duplication():
+    """Regression for from_log drift when 3+ snapshots exist.
+
+    6 effects with snapshot_every=2 produces snapshots at seq 2/4/6 (9 log
+    lines including 3 snapshot events). The buggy impl compared log index
+    against effect count and duplicated the last effect (7 vs 6). The fix
+    counts only non-snapshot events for skip/break.
+    """
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "campaign"
+        fs = FusedState(seed_val=7, bundle_root=root, snapshot_every=2)
+        for i in range(6):
+            fs.record_effect("move", "Lyra", f"moved {i}", scene_id="s1")
+        # 3 snapshots, 9 log lines (6 effects + 3 snapshot events)
+        snaps = sorted((root / "snapshots").glob("*.json"))
+        assert len(snaps) == 3
+        assert sorted(int(p.stem) for p in snaps) == [2, 4, 6]
+        raw_lines = (root / "events.jsonl").read_text().strip().splitlines()
+        assert len(raw_lines) == 9
+
+        # full replay must return exactly 6, not 7
+        fs2 = FusedState.from_log(root / "events.jsonl")
+        assert len(fs2.effects) == 6
+        assert len(fs2.effects) == len(fs.effects)
+        assert [e.summary for e in fs2.effects] == [e.summary for e in fs.effects]
+
+        # at_seq variants exercise the same counter-based break
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=0).effects) == 0
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=1).effects) == 1
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=5).effects) == 5
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=6).effects) == 6
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=None).effects) == 6
+        # at_seq beyond head still returns all effects
+        assert len(FusedState.from_log(root / "events.jsonl", at_seq=99).effects) == 6
+
+        # at_seq=5 summary ordering must match prefix
+        fs5 = FusedState.from_log(root / "events.jsonl", at_seq=5)
+        assert [e.summary for e in fs5.effects] == [f"moved {i}" for i in range(5)]
+
+
 def test_projection_is_idempotent_and_rebuildable():
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp) / "campaign"
