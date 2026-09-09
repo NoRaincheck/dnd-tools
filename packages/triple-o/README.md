@@ -163,7 +163,7 @@ while keeping randomness.
 
 ## Integration
 
-- `dnd-tools` / `dnd-campaign` / `tricube` remain unchanged; `triple-o`
+- `dnd-tools` / `dnd-campaign` remain unchanged; `triple-o`
   consumes `dnd_tools.dice` for seeded determinism and exposes `tau-ai`
   compatible `AgentTool`s via `TripleOTools.tool_schemas()`.
 - Bring your own character Traits — background, alignment, flaws, skills, etc.
