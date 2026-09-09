@@ -6,7 +6,7 @@
 
 ## 1. Why this SRD
 
-Human 1-pagers (Tricube, Lasers&Feelings/Sword-and-Sorcery) fail for small LLMs (<35B): abstract bonus inference (`tricube/tools.py:169 dice_count/out_of_scope`) is sycophancy-prone — always 3d6, ignores `out_of_scope -1`. PR #10 deleted `tricube` for this reason. Heavy 5e (`dnd_tools` 30+ tools `packages/dnd-tools/src/dnd_tools/tools.py:25`) causes decision paralysis and long `tool_trace` pruning (`packages/fused/src/fused/session.py:158`). **Blades Position/Effect** (`packages/blades-in-the-dark/src/blades_in_the_dark/tools.py:set_position_and_effect` + `CONSEQUENCE_TABLE`) is the only proven LLM-hard gate (“cannot soften the blow”). Triple-O (`packages/triple-o/src/triple_o/core.py:82` `1d6 4-6 Obvious/2-3 Option/1 Odd`) constrains option space + injects seeded randomness.
+Human 1-pagers (Tricube, Lasers&Feelings/Sword-and-Sorcery) fail for small LLMs (<35B): abstract bonus inference (`tricube/tools.py:169 dice_count/out_of_scope`) is sycophancy-prone — always 3d6, ignores `out_of_scope -1`. PR #10 deleted `tricube` for this reason. Heavy 5e (`dnd_tools` 30+ tools `packages/dnd-tools/src/dnd_tools/tools.py:25`) causes decision paralysis and long `tool_trace` pruning (`packages/fused/src/fused/session.py:158`). **Blades Position/Effect** (`ref/blades-in-the-dark.md §3.1/§7` `set_position_and_effect` + `CONSEQUENCE_TABLE`, now folded into `fused`) is the only proven LLM-hard gate (“cannot soften the blow”). Triple-O (`packages/triple-o/src/triple_o/core.py:82` `1d6 4-6 Obvious/2-3 Option/1 Odd`) constrains option space + injects seeded randomness.
 
 **Journalistic thesis:** LLMs are best at *observe → constrain → roll → narrate → record*, not tactical optimisation. Hence this SRD is journalistic, not tactical sim.
 

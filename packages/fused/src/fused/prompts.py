@@ -2,7 +2,7 @@
 
 Combines Triple-O creativity harness with Blades-grade Position/Effect gate so
 the LLM cannot soften consequences. Mirrors ``ref/blades-in-the-dark.md §7``
-and ``packages/blades-in-the-dark/src/blades_in_the_dark/prompts.py``.
+(archived synthesis; gate logic now folded into this package).
 """
 
 from __future__ import annotations

@@ -694,6 +694,7 @@ class FusedState:
         elif ce_type == "fused.scene.created":
             scene_data = payload.get("scene")
             if scene_data and not any(s.scene_id == scene_data.get("scene_id") for s in self.scenes):
+                from .models import Clock as _ClkScene
                 from .models import SceneStatus
 
                 if isinstance(scene_data.get("status"), str):
@@ -701,10 +702,28 @@ class FusedState:
                         scene_data["status"] = SceneStatus(scene_data["status"])
                     except Exception:
                         scene_data["status"] = SceneStatus.planned
+                # clocks are stored as dicts via asdict — rebuild to Clock objects
+                if isinstance(scene_data.get("clocks"), list):
+                    rebuilt_clocks: list[_ClkScene] = []
+                    for c in scene_data.get("clocks", []):
+                        if isinstance(c, dict):
+                            try:
+                                rebuilt_clocks.append(_ClkScene(**c))
+                            except Exception:  # noqa: S112
+                                continue
+                        elif isinstance(c, _ClkScene):
+                            rebuilt_clocks.append(c)
+                    scene_data["clocks"] = rebuilt_clocks
                 try:
                     sc = Scene(**scene_data)
                     self.scenes.append(sc)
                     self.active_scene_id = sc.scene_id
+                    # hydrate global clocks dict from scene clocks (beats→clock)
+                    for c in sc.clocks:
+                        if c.name not in self.clocks:
+                            self.clocks[c.name] = _ClkScene(
+                                name=c.name, segments=c.segments, ticks=c.ticks, kind=c.kind
+                            )
                 except Exception:
                     pass
             eff = Effect(
@@ -725,7 +744,7 @@ class FusedState:
             self._effect_counter = max(self._effect_counter, len(self.effects))
         else:
             # generic effect — also hydrate clocks/stress if this was a clock effect
-            if kind in ("clock-set", "clock-tick", "clock-set", "clock-tick"):
+            if kind in ("clock-set", "clock-tick"):
                 name = str(payload.get("name", ""))
                 if name:
                     if kind == "clock-set":
@@ -738,7 +757,12 @@ class FusedState:
                         )
                         for s in self.scenes:
                             for c in s.clocks:
-                                if c.name == name:
+                                if isinstance(c, dict):
+                                    if c.get("name") == name:
+                                        c["segments"] = segs
+                                        c["kind"] = kind_s
+                                        break
+                                elif c.name == name:
                                     c.segments = segs
                                     c.kind = kind_s
                                     break
@@ -748,7 +772,11 @@ class FusedState:
                             clk.add_ticks(int(payload.get("ticks", 0)))
                             for s in self.scenes:
                                 for c in s.clocks:
-                                    if c.name == name:
+                                    if isinstance(c, dict):
+                                        if c.get("name") == name:
+                                            c["ticks"] = clk.ticks
+                                            break
+                                    elif c.name == name:
                                         c.ticks = clk.ticks
                                         break
                         elif "after" in payload:
@@ -757,6 +785,92 @@ class FusedState:
 
                             segs2 = int(payload.get("segments", 6))
                             self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=int(payload.get("after", 0)))
+            elif kind == "action-roll":
+                # hydrate clock ticks buried in action-roll payload (see Findings #1)
+                # payload is {"action_roll": {..., "clock": {"clock": name, "ticks": n, ...}}, "clock": name, "ticks": n}
+                try:
+                    ar = payload.get("action_roll")
+                    clock_name: str | None = None
+                    ticks_val: int | None = None
+                    clock_info: dict[str, Any] | None = None
+                    if isinstance(ar, dict):
+                        ci = ar.get("clock")
+                        if isinstance(ci, dict):
+                            clock_info = ci
+                            clock_name = str(ci.get("clock") or ci.get("name") or "")
+                            tv = ci.get("ticks")
+                            if tv is not None:
+                                ticks_val = int(tv)
+                        # fallback if clock_info missing but ar has clock string
+                        if not clock_name and isinstance(ar.get("clock"), str):
+                            clock_name = str(ar.get("clock"))
+                            if ticks_val is None and ar.get("ticks") is not None:
+                                ticks_val = int(ar.get("ticks"))
+                    if not clock_name and isinstance(payload.get("clock"), str):
+                        clock_name = str(payload.get("clock"))
+                    if ticks_val is None and payload.get("ticks") is not None:
+                        try:
+                            ticks_val = int(payload.get("ticks"))
+                        except Exception:
+                            ticks_val = None
+                    # also consider before/after fallback for creation
+                    after_val = None
+                    if isinstance(clock_info, dict) and clock_info.get("after") is not None:
+                        try:
+                            after_val = int(clock_info.get("after"))
+                        except Exception:
+                            after_val = None
+                    if clock_name and ticks_val is not None and ticks_val != 0:
+                        from .models import Clock as _ClkAR
+
+                        clk2 = self.clocks.get(clock_name)
+                        if clk2 is None:
+                            # create clock if missing (standard 6)
+                            segs_fallback = 6
+                            if isinstance(clock_info, dict) and clock_info.get("segments") is not None:
+                                try:
+                                    segs_fallback = int(clock_info.get("segments"))
+                                except Exception:
+                                    segs_fallback = 6
+                            # if after is known, create with before+ticks already reflected, else ticks
+                            init_ticks = 0
+                            # set to 0 then add ticks to respect capping
+                            clk2 = _ClkAR(name=clock_name, segments=segs_fallback, ticks=init_ticks)
+                            self.clocks[clock_name] = clk2
+                            # also ensure scene copy exists
+                            cur = self.current_scene()
+                            if cur is not None and not any(
+                                (c.get("name") == clock_name if isinstance(c, dict) else c.name == clock_name)
+                                for c in cur.clocks
+                            ):
+                                cur.clocks.append(_ClkAR(name=clock_name, segments=segs_fallback, ticks=0))
+                        # apply ticks delta
+                        clk2.add_ticks(int(ticks_val))
+                        # sync scene copies
+                        for s in self.scenes:
+                            for c in s.clocks:
+                                if isinstance(c, dict):
+                                    if c.get("name") == clock_name:
+                                        c["ticks"] = clk2.ticks
+                                        break
+                                elif c.name == clock_name:
+                                    c.ticks = clk2.ticks
+                                    break
+                        # if after_val indicates a mismatch (e.g., old log had absolute after), ensure we converge to after
+                        if after_val is not None and clk2.ticks != after_val and clk2.ticks < after_val:
+                            # we had a missing clock; just set to after directly
+                            clk2.ticks = min(clk2.segments, max(0, after_val))
+                            for s in self.scenes:
+                                for c in s.clocks:
+                                    if isinstance(c, dict):
+                                        if c.get("name") == clock_name:
+                                            c["ticks"] = clk2.ticks
+                                            break
+                                    elif c.name == clock_name:
+                                        c.ticks = clk2.ticks
+                                        break
+                except Exception:
+                    pass
             eff = Effect(
                 effect_id=eid,
                 scene_id=scene_id,

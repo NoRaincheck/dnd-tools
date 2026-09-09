@@ -6,8 +6,9 @@ transient effects. Scenes provide narrative structure; Triple-O provides
 creativity inside that structure; Clocks + Position/Effect impose the
 Blades-grade gate (“cannot soften the blow”) per GH #11 joint SRD.
 
-Follows ``ref/blades-in-the-dark.md`` for Position/Effect/consequence and
-``packages/blades-in-the-dark/src/blades_in_the_dark/models.py`` for ticks.
+Follows ``ref/blades-in-the-dark.md`` (§3 Position/Effect, §4.2 Clocks) for
+Position/Effect/consequence and ticks (archived synthesis; logic now folded
+into this package).
 """
 
 from __future__ import annotations
@@ -38,10 +39,10 @@ class EffectLevel(str, enum.Enum):
     extreme = "extreme"
 
 
-# Effect → clock ticks (SRD §Effect; extreme = 5 house rule) — mirrors blades/models.py:71
+# Effect → clock ticks (SRD §Effect; extreme = 5 house rule) — see ref/blades-in-the-dark.md §4.2
 EFFECT_TICKS: dict[str, int] = {"zero": 0, "limited": 1, "standard": 2, "great": 3, "extreme": 5}
 
-# Consequence table verbatim (controlled/risky/desperate × partial/failure) — mirrors blades/tools.py:26
+# Consequence table verbatim (controlled/risky/desperate × partial/failure) — see ref/blades-in-the-dark.md §3.1
 CONSEQUENCE_TABLE: dict[str, dict[str, list[str]]] = {
     "controlled": {
         "partial": [
