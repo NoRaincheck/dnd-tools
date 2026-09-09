@@ -77,8 +77,9 @@ def assess_trivial(
         reasons.append("high-stakes keywords override → not trivial")
     if trivial:
         return True, "Say Yes — trivial stakes: " + ", ".join(reasons)
-    # also allow explicit 'trivial' tag even if not controlled (fallback)
-    if explicit_trivial and pos == TRIVIAL_POSITION:
+    # also allow explicit 'trivial' tag for effects outside TRIVIAL_EFFECTS (e.g. great with controlled) — fallback
+    # but do not re-enable if high-stakes already downgraded a standard/zero trivial
+    if explicit_trivial and pos == TRIVIAL_POSITION and eff not in TRIVIAL_EFFECTS:
         return True, "Say Yes — situation tagged trivial/low-risk"
     return False, ""
 

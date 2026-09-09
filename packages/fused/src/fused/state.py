@@ -821,6 +821,43 @@ class FusedState:
                                 setattr(existing, k, v)
                 except Exception:
                     pass
+                # replay clock tick for choice (mirrors live resolve_choice tick)
+                # live does: if choice.ticks and cur and cur.clocks and category != "odd": tick primary clock
+                if ce_type in ("fused.choice.resolved", "fused.choice.say_yes"):
+                    try:
+                        ticks_val = int(choice_data.get("ticks", 0) or 0)
+                        cat = str(choice_data.get("category") or "")
+                        if ticks_val and cat != "odd":
+                            sid_choice = str(choice_data.get("scene_id") or scene_id)
+                            target_scene = next((s for s in self.scenes if s.scene_id == sid_choice), None)
+                            primary_name: str | None = None
+                            if target_scene and target_scene.clocks:
+                                first = target_scene.clocks[0]
+                                primary_name = first.name if hasattr(first, "name") else str(first.get("name", ""))  # type: ignore[union-attr]
+                            # fallback to global clocks first entry if scene has no clocks yet
+                            if not primary_name and self.clocks:
+                                # prefer clock whose name starts with scene_id
+                                for k in self.clocks:
+                                    if k.startswith(sid_choice):
+                                        primary_name = k
+                                        break
+                                if not primary_name:
+                                    primary_name = next(iter(self.clocks))
+                            if primary_name and primary_name in self.clocks:
+                                clk = self.clocks[primary_name]
+                                # add ticks; clock-tick event replay below is idempotent via `after`, so no double-count
+                                clk.add_ticks(ticks_val)
+                                for s in self.scenes:
+                                    for c in s.clocks:
+                                        if hasattr(c, "name"):
+                                            if c.name == primary_name:  # type: ignore[union-attr]
+                                                c.ticks = clk.ticks  # type: ignore[union-attr]
+                                                break
+                                        elif isinstance(c, dict) and c.get("name") == primary_name:
+                                            c["ticks"] = clk.ticks
+                                            break
+                    except Exception:
+                        pass
             # also show as effect for traverse_history (so choice branches are traversable via generic history)
             eff = Effect(
                 effect_id=eid,
@@ -937,24 +974,43 @@ class FusedState:
                                     c.ticks = ticks_v
                                     break
                     elif kind == "clock-tick":
-                        clk = self.clocks.get(name)
-                        if clk:
-                            clk.add_ticks(int(payload.get("ticks", 0)))
-                            for s in self.scenes:
-                                for c in s.clocks:
-                                    if isinstance(c, dict):
-                                        if c.get("name") == name:
-                                            c["ticks"] = clk.ticks
-                                            break
-                                    elif c.name == name:
-                                        c.ticks = clk.ticks
-                                        break
-                        elif "after" in payload:
-                            # fallback: create clock with after ticks if missing (replay before snapshot)
-                            from .models import Clock as _Clk2
+                        # idempotent: if payload has `after`, set directly to avoid double-count when choice branch already ticked
+                        if "after" in payload:
+                            try:
+                                after_val = int(payload.get("after", 0))
+                                clk_existing = self.clocks.get(name)
+                                if clk_existing is not None:
+                                    # set to after (capped)
+                                    clk_existing.ticks = max(0, min(clk_existing.segments, after_val))
+                                    for s in self.scenes:
+                                        for c in s.clocks:
+                                            if isinstance(c, dict):
+                                                if c.get("name") == name:
+                                                    c["ticks"] = clk_existing.ticks
+                                                    break
+                                            elif c.name == name:
+                                                c.ticks = clk_existing.ticks
+                                                break
+                                else:
+                                    from .models import Clock as _Clk2
 
-                            segs2 = int(payload.get("segments", 6))
-                            self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=int(payload.get("after", 0)))
+                                    segs2 = int(payload.get("segments", 6))
+                                    self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=after_val)
+                            except Exception:
+                                pass
+                        else:
+                            clk = self.clocks.get(name)
+                            if clk:
+                                clk.add_ticks(int(payload.get("ticks", 0)))
+                                for s in self.scenes:
+                                    for c in s.clocks:
+                                        if isinstance(c, dict):
+                                            if c.get("name") == name:
+                                                c["ticks"] = clk.ticks
+                                                break
+                                        elif c.name == name:
+                                            c.ticks = clk.ticks
+                                            break
             elif kind == "action-roll":
                 # hydrate clock ticks buried in action-roll payload (see Findings #1)
                 # payload is {"action_roll": {..., "clock": {"clock": name, "ticks": n, ...}}, "clock": name, "ticks": n}

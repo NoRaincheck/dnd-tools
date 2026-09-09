@@ -76,16 +76,58 @@ from fused.models import CharacterTraits
 
 fs = FusedState(seed_val=42, bundle_root="knowledge/fused-demo")
 sess = FusedSession(fs)
-sess.register_party_traits([
-    CharacterTraits(name="Elaria", archetype="ranger", traits=["brave","keen eye"]),
-    CharacterTraits(name="Borin", archetype="fighter", traits=["stubborn","cautious"]),
-])
+sess.register_party_traits(
+    [
+        CharacterTraits(name="Elaria", archetype="ranger", traits=["brave", "keen eye"]),
+        CharacterTraits(name="Borin", archetype="fighter", traits=["stubborn", "cautious"]),
+    ]
+)
 specs = [
-    {"actor":"Elaria","situation":"trivial: arrange camp, refill waterskins at well — low risk","obvious":"Refill at well methodically","option":"Barter with locals","odd":"Sing loudly while refilling","position":"controlled","effect":"limited"},
-    {"actor":"Elaria","situation":"Goblin horde blocks gate; party must breach","obvious":"Charge straight into fray","option":"Scan perimeter for weak point","odd":"Feign surrender to get close","position":"risky","effect":"standard"},
-    {"actor":"Borin","situation":"A trapped corridor hisses — do they search for traps?","obvious":"Search carefully for traps","option":"Throw rock to trigger mechanisms","odd":"Kick wall and yell at corridor","position":"risky","effect":"standard"},
-    {"actor":"Elaria","situation":"Group dilemma: hold position, negotiate, or flee","obvious":"Hold position","option":"Negotiate","odd":"Flee","position":"desperate","effect":"great"},
-    {"actor":"Borin","situation":"trivial: mend torn cloak at campfire — easy","obvious":"Stitch with needle","option":"Use mage hand","odd":"Wear as cape","position":"controlled","effect":"limited"},
+    {
+        "actor": "Elaria",
+        "situation": "trivial: arrange camp, refill waterskins at well — low risk",
+        "obvious": "Refill at well methodically",
+        "option": "Barter with locals",
+        "odd": "Sing loudly while refilling",
+        "position": "controlled",
+        "effect": "limited",
+    },
+    {
+        "actor": "Elaria",
+        "situation": "Goblin horde blocks gate; party must breach",
+        "obvious": "Charge straight into fray",
+        "option": "Scan perimeter for weak point",
+        "odd": "Feign surrender to get close",
+        "position": "risky",
+        "effect": "standard",
+    },
+    {
+        "actor": "Borin",
+        "situation": "A trapped corridor hisses — do they search for traps?",
+        "obvious": "Search carefully for traps",
+        "option": "Throw rock to trigger mechanisms",
+        "odd": "Kick wall and yell at corridor",
+        "position": "risky",
+        "effect": "standard",
+    },
+    {
+        "actor": "Elaria",
+        "situation": "Group dilemma: hold position, negotiate, or flee",
+        "obvious": "Hold position",
+        "option": "Negotiate",
+        "odd": "Flee",
+        "position": "desperate",
+        "effect": "great",
+    },
+    {
+        "actor": "Borin",
+        "situation": "trivial: mend torn cloak at campfire — easy",
+        "obvious": "Stitch with needle",
+        "option": "Use mage hand",
+        "odd": "Wear as cape",
+        "position": "controlled",
+        "effect": "limited",
+    },
 ]
 sess.run_campaign_via_choices(specs, scene_id="scene-demo", scene_title="Demo Choices")
 
