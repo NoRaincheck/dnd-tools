@@ -34,19 +34,35 @@ from __future__ import annotations
 
 from .events import append_event, iter_events, validate_event, validate_log
 from .memory import build_agent_context, compact_fused_transcript, summarize_fused
-from .models import CampaignBundleMeta, CharacterTraits, Effect, Scene, SceneStatus
+from .models import (
+    CONSEQUENCE_TABLE,
+    EFFECT_TICKS,
+    CampaignBundleMeta,
+    CharacterTraits,
+    Clock,
+    Effect,
+    EffectLevel,
+    Position,
+    Scene,
+    SceneStatus,
+)
 from .projection import build_projection
 from .session import FusedSession
 from .state import FusedState
 from .tools import FusedTools
 
 __all__ = [
+    "CONSEQUENCE_TABLE",
+    "EFFECT_TICKS",
     "CampaignBundleMeta",
     "CharacterTraits",
+    "Clock",
     "Effect",
+    "EffectLevel",
     "FusedSession",
     "FusedState",
     "FusedTools",
+    "Position",
     "Scene",
     "SceneStatus",
     "append_event",

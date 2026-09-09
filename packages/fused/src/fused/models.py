@@ -3,7 +3,11 @@
 Per GH issue #4: character traits are maintained separate to the event state
 so an Agent can traverse history without conflating stable traits with
 transient effects. Scenes provide narrative structure; Triple-O provides
-creativity inside that structure; OKF bundle records effects for traversal.
+creativity inside that structure; Clocks + Position/Effect impose the
+Blades-grade gate (“cannot soften the blow”) per GH #11 joint SRD.
+
+Follows ``ref/blades-in-the-dark.md`` for Position/Effect/consequence and
+``packages/blades-in-the-dark/src/blades_in_the_dark/models.py`` for ticks.
 """
 
 from __future__ import annotations
@@ -18,6 +22,87 @@ class SceneStatus(str, enum.Enum):
     active = "active"
     resolved = "resolved"
     archived = "archived"
+
+
+class Position(str, enum.Enum):
+    controlled = "controlled"
+    risky = "risky"
+    desperate = "desperate"
+
+
+class EffectLevel(str, enum.Enum):
+    zero = "zero"
+    limited = "limited"
+    standard = "standard"
+    great = "great"
+    extreme = "extreme"
+
+
+# Effect → clock ticks (SRD §Effect; extreme = 5 house rule) — mirrors blades/models.py:71
+EFFECT_TICKS: dict[str, int] = {"zero": 0, "limited": 1, "standard": 2, "great": 3, "extreme": 5}
+
+# Consequence table verbatim (controlled/risky/desperate × partial/failure) — mirrors blades/tools.py:26
+CONSEQUENCE_TABLE: dict[str, dict[str, list[str]]] = {
+    "controlled": {
+        "partial": [
+            "minor complication occurs",
+            "reduced effect (−1 tick or effect downgrade)",
+            "lesser harm (level 1)",
+            "fall to risky position",
+        ],
+        "failure": [
+            "falter: press on by seizing a risky opportunity, or withdraw and try a different approach",
+        ],
+    },
+    "risky": {
+        "partial": [
+            "harm (level 1-2)",
+            "complication occurs",
+            "reduced effect",
+            "fall to desperate position",
+        ],
+        "failure": [
+            "harm (level 1-2)",
+            "complication occurs",
+            "fall to desperate position",
+            "lose this opportunity",
+        ],
+    },
+    "desperate": {
+        "partial": [
+            "severe harm (level 2-3)",
+            "serious complication occurs",
+            "reduced effect",
+        ],
+        "failure": [
+            "severe harm (level 2-3)",
+            "serious complication occurs",
+            "lose this opportunity for action",
+        ],
+    },
+}
+
+
+@dataclasses.dataclass
+class Clock:
+    """Progress clock — beats are ticks on a segmented track."""
+
+    name: str
+    segments: int = 6  # 4/6/8 common (blades)
+    ticks: int = 0
+    kind: str = "obstacle"  # obstacle/danger/project/healing/turf
+
+    def add_ticks(self, n: int) -> int:
+        self.ticks = max(0, min(self.segments, self.ticks + int(n)))
+        return self.ticks
+
+    @property
+    def completed(self) -> bool:
+        return self.ticks >= self.segments
+
+    @property
+    def remaining(self) -> int:
+        return max(0, self.segments - self.ticks)
 
 
 @dataclasses.dataclass
@@ -74,7 +159,10 @@ class CharacterTraits:
 class Scene:
     """Narrative scene — the unit of campaign structure.
 
-    A campaign is a sequence of scenes; each scene has beats and an OKF concept.
+    A campaign is a sequence of scenes; each scene has beats (strings, for
+    backward compat) and/or explicit Clocks (progress tracks, per joint SRD).
+    Beats auto-seed a default ``<scene_id>-progress`` 6-clock if no clocks
+    are supplied — beats are shorthand, clocks are authoritative.
     """
 
     scene_id: str
@@ -87,6 +175,8 @@ class Scene:
     beats: list[str] = dataclasses.field(default_factory=list)
     # who participates (names must have traits registered)
     cast: list[str] = dataclasses.field(default_factory=list)
+    # explicit clocks (authoritative progress); if empty and beats non-empty, a default clock is lazily created
+    clocks: list[Clock] = dataclasses.field(default_factory=list)  # type: ignore[type-arg]
     # effect ids within this scene (filled by FusedState)
     effect_ids: list[str] = dataclasses.field(default_factory=list)
     seed: int = 0

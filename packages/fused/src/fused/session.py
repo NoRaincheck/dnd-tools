@@ -1,13 +1,17 @@
-"""FusedSession — scene-based campaign orchestrator with Triple-O + JSONL log.
+"""FusedSession — scene-based campaign orchestrator with Triple-O + JSONL log (joint SRD).
 
 Reuses dnd_tools.simulation.Simulation for combat within a scene, but
 surrounds it with:
-  - traits registration (stable, separate)
-  - scene creation / beat progression (narrative structure)
-  - Triple-O propose→roll per player dilemma (creativity harness)
-  - JSONL event log + snapshots + idempotent projection (traversable memory)
+  - traits registration (stable, separate; GH #4)
+  - scene creation / beat→clock progression (narrative structure; beats auto-seed a 6-clock)
+  - Triple-O propose→roll per player dilemma (creativity harness, triple_o/middleware.py)
+  - Position/Effect gate + gated action_roll + resistance (Blades-grade “cannot soften”, ref/blades-in-the-dark.md §7)
+  - JSONL event log + snapshots + idempotent projection (traversable memory; GH #8 / PR #9)
 
-No edits to dnd_tools or dnd_campaign; this is an isolated orchestrator.
+Per-turn journalistic loop (GH #11): ``get_traits+get_context → propose→roll → set_position_and_effect → action_roll → resistance → record → tick_clock``.
+MVP still delegates combat to 5e Simulation; the gated roll is exercised via
+direct ``FusedTools`` calls (exposed to the LLM) and recorded alongside
+heuristic triple-o effects. No edits to dnd_tools or dnd_campaign.
 """
 
 from __future__ import annotations
