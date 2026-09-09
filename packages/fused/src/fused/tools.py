@@ -3,11 +3,12 @@
 Delegates all dnd_tools.Tools via CampaignState inner, plus:
   - traits: register_traits / get_traits / list_traits
   - scenes: create_scene / get_scene / list_scenes / advance_scene_beat
-  - effects: record_effect / traverse_history / get_context / export_okf
+  - effects: record_effect / traverse_history / get_context
   - creativity: delegated Triple-O tools (propose_triple_o etc. via inner TripleOTools)
   - campaign: long_rest / short_rest / checkpoint etc. via CampaignTools
 
 All mutations are logged to campaign.inner.tool_trace for audit.
+Canonical persistence is events.jsonl + snapshots (see events.py).
 """
 
 from __future__ import annotations
@@ -57,7 +58,6 @@ class FusedTools:
             "record_effect",
             "traverse_history",
             "get_context",
-            "export_okf",
             "summarize_fused",
         }
         if name in fused_names and hasattr(self, name):
@@ -113,9 +113,7 @@ class FusedTools:
         self.fstate.register_traits(ct)
         res = {"name": name, "registered": True, "summary": ct.trait_summary()}
         self.fstate.campaign.inner.log_tool("register_traits", {"name": name}, res)
-        self.fstate.record_effect(
-            "trait-register", name, f"Registered traits for {name}: {ct.trait_summary()}", payload={"traits": ct.traits}
-        )
+        # FusedState.register_traits already appends canonical event; no extra record_effect here
         return res
 
     def get_traits(self, name: str) -> dict[str, Any]:
@@ -164,12 +162,7 @@ class FusedTools:
         self.fstate.add_scene(sc)
         res = {"scene_id": scene_id, "title": title, "status": sc.status.value}
         self.fstate.campaign.inner.log_tool("create_scene", {"scene_id": scene_id}, res)
-        self.fstate.record_effect(
-            "scene-create",
-            "GM",
-            f"Scene {scene_id}: {title} — {objective}",
-            payload={"location": location, "threat": threat},
-        )
+        # FusedState.add_scene already appends canonical event; no extra record_effect here
         return res
 
     def get_scene(self, scene_id: str) -> dict[str, Any]:
@@ -247,16 +240,6 @@ class FusedTools:
             "get_context", {"actor": actor}, {"traits": ctx["traits"], "effects": len(ctx["recent_effects"])}
         )
         return ctx
-
-    def export_okf(self, bundle_root: str | None = None) -> dict[str, Any]:
-        root = self.fstate.export_okf(bundle_root=bundle_root) if bundle_root else self.fstate.export_okf()
-        res = {
-            "bundle_root": str(root),
-            "effects": len(self.fstate.effects),
-            "concepts": len(self.fstate._okf._concepts if self.fstate._okf else []),
-        }
-        # already logged inside export_okf
-        return res
 
     def summarize_fused(self) -> dict[str, Any]:
         from .memory import summarize_fused
@@ -372,7 +355,7 @@ class FusedTools:
                 "type": "function",
                 "function": {
                     "name": "record_effect",
-                    "description": "Record an effect/event to the append-only OKF log (event state, separate from traits).",
+                    "description": "Record an effect/event to the append-only JSONL log (event state, separate from traits).",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -390,7 +373,7 @@ class FusedTools:
                 "type": "function",
                 "function": {
                     "name": "traverse_history",
-                    "description": "Traverse campaign history (OKF event log) with optional filters. Agent uses this before acting.",
+                    "description": "Traverse campaign history (JSONL event log) with optional filters. Agent uses this before acting.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -413,14 +396,6 @@ class FusedTools:
                         "properties": {"actor": {"type": "string"}, "last_n": {"type": "integer"}},
                         "required": ["actor"],
                     },
-                },
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "export_okf",
-                    "description": "Export campaign as OKF bundle (markdown+YAML per okf.md/spec).",
-                    "parameters": {"type": "object", "properties": {"bundle_root": {"type": "string"}}, "required": []},
                 },
             },
             {

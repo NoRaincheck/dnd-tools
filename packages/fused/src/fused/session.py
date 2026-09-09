@@ -1,11 +1,11 @@
-"""FusedSession — scene-based campaign orchestrator with Triple-O + OKF.
+"""FusedSession — scene-based campaign orchestrator with Triple-O + JSONL log.
 
 Reuses dnd_tools.simulation.Simulation for combat within a scene, but
 surrounds it with:
   - traits registration (stable, separate)
   - scene creation / beat progression (narrative structure)
   - Triple-O propose→roll per player dilemma (creativity harness)
-  - OKF effect recording + bundle export (traversable memory)
+  - JSONL event log + snapshots + idempotent projection (traversable memory)
 
 No edits to dnd_tools or dnd_campaign; this is an isolated orchestrator.
 """
@@ -109,7 +109,7 @@ class FusedSession:
         # to the standard Simulation. Full per-turn harness is LLM path.
         if use_triple_o and use_heuristic:
             # Pre-roll a Triple-O decision per player to flavour narration
-            # Effects are recorded so OKF history captures the creativity signal.
+            # Effects are recorded so event-log history captures the creativity signal.
             for pname in list(self.fstate.campaign.inner.players.keys()):
                 tr = self.fstate.get_traits(pname)
                 trait_list = tr.traits if tr else [self.fstate.campaign.inner.players[pname].char_class]
@@ -148,9 +148,10 @@ class FusedSession:
             "scene-end", "GM", outcome, payload={"result": res["players"]}, scene_id=scene.scene_id
         )
         scene.status = SceneStatus.resolved
-        # export OKF snapshot so bundle is always current
+        # log is already canonical; snapshot if needed
         try:
-            self.fstate.export_okf()
+            if len(self.fstate.effects) % self.fstate._snapshot_every == 0:
+                self.fstate.take_snapshot()
         except Exception:
             pass
         self.fstate.campaign.checkpoint()
@@ -192,6 +193,9 @@ class FusedSession:
                 self.fstate.record_effect(
                     "long-rest", "GM", "Party takes a night's rest; HP/slots restored", scene_id=scene.scene_id
                 )
-        # final bundle export
-        self.fstate.export_okf()
+        # final snapshot
+        try:
+            self.fstate.take_snapshot()
+        except Exception:
+            pass
         return results

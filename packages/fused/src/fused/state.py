@@ -5,11 +5,12 @@ for authoritative mechanics, but keeps:
   - traits_registry: dict[name -> CharacterTraits]  (stable, separate)
   - scenes: list[Scene]                             (narrative structure)
   - effects: list[Effect]                           (append-only event log)
-  - okf bundle builder (OKFBundle) for disk persistence + traversal
+
+Persistence is via canonical JSONL event log (events.jsonl) + periodic
+snapshots (snapshots/<seq>.json) + manifest.json. DB projections
+(projections/campaign.db) are derived and idempotent — rebuildable from log.
 
 Determinism: every roll goes through dnd_tools.dice seeded RNG.
-History is traversable via OKF bundle (file per concept) plus in-memory
-effects list + CampaignState history snapshots.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from .models import CharacterTraits, Effect, Scene
 
 
 class FusedState:
-    """Long-horizon fused state."""
+    """Long-horizon fused state with event-sourced persistence."""
 
     def __init__(
         self,
@@ -34,30 +35,94 @@ class FusedState:
         map_h: int = 20,
         max_history: int = 100,
         bundle_root: str | Path | None = None,
+        event_log: str | Path | None = None,
+        snapshot_every: int = 50,
     ):
         self.seed = seed_val
         dice_seed(seed_val)
-        # authoritative mechanics (HP/pos/initiative/LoS) — unchanged paper code
         self.campaign = CampaignState(seed_val=seed_val, map_w=map_w, map_h=map_h, max_history=max_history)
-        # trait registry — separate per issue #4
         self.traits_registry: dict[str, CharacterTraits] = {}
-        # narrative structure
         self.scenes: list[Scene] = []
         self.active_scene_id: str | None = None
-        # append-only event log (this is the "event state")
         self.effects: list[Effect] = []
         self._effect_counter: int = 0
-        # OKF bundle (optional — built on demand or at bundle_root)
-        self.bundle_root = Path(bundle_root) if bundle_root else None
-        from .okf import OKFBundle
 
-        self._okf: OKFBundle | None = None
-        if self.bundle_root:
-            self._okf = OKFBundle(self.bundle_root, meta_name="fused-campaign", seed=seed_val)
+        # --- event log layout ---
+        # bundle_root is the campaign directory: events.jsonl + snapshots/ + manifest.json + projections/
+        # If neither bundle_root nor event_log is given, state is ephemeral (no file I/O) — useful for unit tests.
+        self.bundle_root = Path(bundle_root) if bundle_root else None
+        if event_log is not None:
+            self.event_log_path: Path | None = Path(event_log)
+        elif self.bundle_root is not None:
+            self.event_log_path = self.bundle_root / "events.jsonl"
+        else:
+            self.event_log_path = None
+
+        if self.bundle_root is not None:
+            self.snapshots_dir: Path | None = self.bundle_root / "snapshots"
+            self.manifest_path: Path | None = self.bundle_root / "manifest.json"
+            self.projection_path: Path | None = self.bundle_root / "projections" / "campaign.db"
+        elif self.event_log_path is not None:
+            self.snapshots_dir = self.event_log_path.parent / "snapshots"
+            self.manifest_path = self.event_log_path.parent / "manifest.json"
+            self.projection_path = self.event_log_path.parent / "projections" / "campaign.db"
+        else:
+            self.snapshots_dir = None
+            self.manifest_path = None
+            self.projection_path = None
+
+        self._snapshot_every = snapshot_every
+
+    # -- internal event log helpers ---------------------------------------
+    def _ensure_dirs(self) -> None:
+        if self.event_log_path is None:
+            return
+        self.event_log_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.snapshots_dir is not None:
+            self.snapshots_dir.mkdir(parents=True, exist_ok=True)
+        if self.projection_path is not None:
+            self.projection_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _append_event(self, evt: dict[str, Any]) -> None:
+        if self.event_log_path is None:
+            return
+        from .events import append_event
+
+        self._ensure_dirs()
+        append_event(self.event_log_path, evt)
+
+    def _maybe_snapshot(self) -> Path | None:
+        if self.event_log_path is None or self.snapshots_dir is None:
+            return None
+        if len(self.effects) > 0 and len(self.effects) % self._snapshot_every == 0:
+            return self.take_snapshot()
+        return None
+
+    def _update_manifest(self, snapshot_ref: str | None = None) -> None:
+        if self.event_log_path is None:
+            return
+        from .events import write_manifest
+
+        head_id = self.effects[-1].effect_id if self.effects else None
+        write_manifest(
+            self.event_log_path.parent,
+            head_seq=len(self.effects),
+            head_id=head_id,
+            snapshot_ref=snapshot_ref,
+            events_path=self.event_log_path,
+        )
 
     # -- traits --------------------------------------------------------
     def register_traits(self, traits: CharacterTraits) -> None:
         self.traits_registry[traits.name] = traits
+        # also record as event for replayability
+        self.record_effect(
+            "trait-register",
+            traits.name,
+            f"Registered traits for {traits.name}: {traits.trait_summary()}",
+            payload={"traits": traits.traits, "archetype": traits.archetype, "ancestry": traits.ancestry},
+            _event_type="fused.trait.registered",
+        )
 
     def get_traits(self, name: str) -> CharacterTraits | None:
         return self.traits_registry.get(name)
@@ -66,9 +131,18 @@ class FusedState:
     def add_scene(self, scene: Scene) -> Scene:
         self.scenes.append(scene)
         self.active_scene_id = scene.scene_id
-        # also track in campaign meta
         self.campaign.campaign_meta["scenes"] = len(self.scenes)
         self.campaign.campaign_meta["active_scene"] = scene.scene_id
+        from dataclasses import asdict
+
+        self.record_effect(
+            "scene-create",
+            "GM",
+            f"Scene {scene.scene_id}: {scene.title} — {scene.objective}",
+            payload={"scene": asdict(scene), "location": scene.location, "threat": scene.threat},
+            scene_id=scene.scene_id,
+            _event_type="fused.scene.created",
+        )
         return scene
 
     def current_scene(self) -> Scene | None:
@@ -87,6 +161,8 @@ class FusedState:
         summary: str,
         payload: dict[str, Any] | None = None,
         scene_id: str | None = None,
+        _event_type: str | None = None,
+        _snapshot_ref: str | None = None,
     ) -> Effect:
         sid = scene_id or self.active_scene_id or "scene-00"
         eid = Effect.make_id(sid, self._effect_counter, kind, actor)
@@ -102,14 +178,45 @@ class FusedState:
             payload=dict(payload or {}),
         )
         self.effects.append(eff)
-        # attach to scene
         for s in self.scenes:
             if s.scene_id == sid:
                 s.effect_ids.append(eid)
                 break
-        # transcript + tool trace also get a marker for LLM context
         self.campaign.inner.add_transcript(f"[effect {eid}] {actor} {kind}: {summary}")
-        # if OKF bundle is active, we could defer writes to flush()
+
+        # append to canonical log
+        from .events import make_event
+
+        # choose CloudEvents type: fused.effect.* vs explicit
+        if _event_type is not None:
+            ce_type = _event_type
+        elif kind == "triple-o":
+            ce_type = "fused.effect.triple_o"
+        elif kind in ("long-rest", "short-rest"):
+            ce_type = "fused.campaign.rest"
+        else:
+            ce_type = "fused.effect.recorded"
+        cur = self.current_scene()
+        evt = make_event(
+            effect_id=eid,
+            type=ce_type,
+            actor=actor,
+            scene_id=sid,
+            kind=kind,
+            summary=summary,
+            payload=dict(payload or {}),
+            seed=self.seed,
+            round=self.campaign.inner.round,
+            scene_title=cur.title if cur else None,
+        )
+        if _snapshot_ref:
+            evt["snapshot_ref"] = _snapshot_ref
+        try:
+            self._append_event(evt)
+        except Exception:
+            pass
+        self._maybe_snapshot()
+        self._update_manifest()
         return eff
 
     # -- snapshot / restore (includes traits + scenes + effects) -------
@@ -130,14 +237,11 @@ class FusedState:
         self.seed = snap.get("seed", 0)
         dice_seed(self.seed)
         self.campaign.restore(snap.get("campaign_snapshot", {}))
-        # traits
         self.traits_registry = {k: CharacterTraits(**v) for k, v in snap.get("traits", {}).items()}
-        # scenes
         from .models import SceneStatus
 
         scenes: list[Scene] = []
         for d in snap.get("scenes", []):
-            # coerce status enum
             if isinstance(d.get("status"), str):
                 try:
                     d["status"] = SceneStatus(d["status"])
@@ -145,10 +249,189 @@ class FusedState:
                     d["status"] = SceneStatus.planned
             scenes.append(Scene(**d))
         self.scenes = scenes
-        # effects
         self.effects = [Effect(**e) for e in snap.get("effects", [])]
         self.active_scene_id = snap.get("active_scene_id")
         self._effect_counter = int(snap.get("effect_counter", len(self.effects)))
+
+    # -- file snapshot helpers --------------------------------------------
+    def take_snapshot(self, seq: int | None = None) -> Path:
+        """Write full snapshot to ``snapshots/<seq>.json`` and log a snapshot event."""
+        if self.event_log_path is None or self.snapshots_dir is None:
+            # ephemeral state — return a temp path without I/O
+            raise RuntimeError("cannot take snapshot without bundle_root/event_log")
+        from .events import make_event, snapshot_hash, write_snapshot
+
+        self._ensure_dirs()
+        s = seq if seq is not None else len(self.effects)
+        snap = self.snapshot()
+        snap_path = write_snapshot(self.snapshots_dir, snap, s)
+        h = snapshot_hash(snap)
+        # log snapshot event (for manifest + hash attestation)
+        eid = f"snapshot-{s:05d}-{h[:8]}"
+        evt = make_event(
+            effect_id=eid,
+            type="fused.snapshot.taken",
+            actor="system",
+            scene_id=self.active_scene_id or "scene-00",
+            kind="snapshot",
+            summary=f"Snapshot at seq {s}",
+            payload={},
+            seed=self.seed,
+            round=self.campaign.inner.round,
+            extra_data={"snapshot_hash": h, "seq": s},
+            snapshot_ref=str(snap_path.relative_to(self.event_log_path.parent))
+            if snap_path.is_relative_to(self.event_log_path.parent)
+            else str(snap_path),
+        )
+        try:
+            self._append_event(evt)
+        except Exception:
+            pass
+        self._update_manifest(snapshot_ref=str(snap_path))
+        return snap_path
+
+    @classmethod
+    def from_log(
+        cls,
+        events_path: str | Path,
+        snapshots_dir: str | Path | None = None,
+        at_seq: int | None = None,
+    ) -> FusedState:
+        """Replay ``events.jsonl`` (+ latest snapshot before ``at_seq``) into a new FusedState."""
+        from .events import iter_events, read_snapshot
+
+        ep = Path(events_path)
+        sdir = Path(snapshots_dir) if snapshots_dir else ep.parent / "snapshots"
+
+        # find latest snapshot <= at_seq
+        latest_snap: dict[str, Any] | None = None
+        latest_seq = -1
+        if sdir.exists():
+            for p in sorted(sdir.glob("*.json")):
+                try:
+                    seq = int(p.stem)
+                except ValueError:
+                    continue
+                if at_seq is not None and seq > at_seq:
+                    continue
+                if seq > latest_seq:
+                    latest_seq = seq
+                    try:
+                        latest_snap = read_snapshot(p)
+                    except Exception:  # noqa: S112
+                        continue
+
+        seed = 0
+        if latest_snap is not None:
+            seed = latest_snap.get("seed", latest_snap.get("campaign_snapshot", {}).get("seed", 0))
+        fs = cls(seed_val=seed)
+        if latest_snap is not None:
+            fs.restore(latest_snap)
+
+        # replay events after snapshot — count non-snapshot events, not log index
+        # Snapshot events (fused.snapshot.taken) are appended to the log but do
+        # not increment self.effects / snapshot seq, so log index drifts from
+        # effect count when 3+ snapshots exist. Counting only non-snapshot
+        # events avoids duplicate replay (see PR review reproducer: 6 effects
+        # with snapshot_every=2 duplicated the last effect).
+        replayed = 0
+        for evt in iter_events(ep):
+            if evt.get("type") == "fused.snapshot.taken":
+                continue
+            if replayed < latest_seq:
+                replayed += 1
+                continue
+            if at_seq is not None and replayed >= at_seq:
+                break
+            fs._apply_event(evt)
+            replayed += 1
+        return fs
+
+    def _apply_event(self, evt: dict[str, Any]) -> None:
+        """Apply a single log event to in-memory state (for replay). No I/O."""
+        ce_type = evt.get("type", "")
+        fused = evt.get("fused", {})
+        data = evt.get("data", {})
+        payload = data.get("payload", {})
+        actor = evt.get("subject", "")
+        scene_id = fused.get("scene_id", "scene-00")
+        kind = fused.get("kind", "")
+        summary = data.get("summary", "")
+        eid = evt.get("id", "")
+
+        if ce_type == "fused.trait.registered":
+            # payload contains traits list; reconstruct minimal CharacterTraits
+            name = actor
+            if name not in self.traits_registry:
+                self.traits_registry[name] = CharacterTraits(
+                    name=name,
+                    archetype=str(payload.get("archetype", "fighter")),
+                    ancestry=str(payload.get("ancestry", "human")),
+                    traits=list(payload.get("traits", [])),
+                )
+            # still record effect for traversal
+            eff = Effect(
+                effect_id=eid,
+                scene_id=scene_id,
+                actor=actor,
+                kind=kind,
+                summary=summary,
+                round=int(fused.get("round", 0)),
+                payload=dict(payload),
+            )
+            self.effects.append(eff)
+            self._effect_counter = max(self._effect_counter, len(self.effects))
+        elif ce_type == "fused.scene.created":
+            scene_data = payload.get("scene")
+            if scene_data and not any(s.scene_id == scene_data.get("scene_id") for s in self.scenes):
+                from .models import SceneStatus
+
+                if isinstance(scene_data.get("status"), str):
+                    try:
+                        scene_data["status"] = SceneStatus(scene_data["status"])
+                    except Exception:
+                        scene_data["status"] = SceneStatus.planned
+                try:
+                    sc = Scene(**scene_data)
+                    self.scenes.append(sc)
+                    self.active_scene_id = sc.scene_id
+                except Exception:
+                    pass
+            eff = Effect(
+                effect_id=eid,
+                scene_id=scene_id,
+                actor=actor,
+                kind=kind,
+                summary=summary,
+                round=int(fused.get("round", 0)),
+                payload=dict(payload),
+            )
+            self.effects.append(eff)
+            for s in self.scenes:
+                if s.scene_id == scene_id:
+                    if eid not in s.effect_ids:
+                        s.effect_ids.append(eid)
+                    break
+            self._effect_counter = max(self._effect_counter, len(self.effects))
+        else:
+            # generic effect
+            eff = Effect(
+                effect_id=eid,
+                scene_id=scene_id,
+                actor=actor,
+                kind=kind,
+                summary=summary,
+                round=int(fused.get("round", 0)),
+                turn_actor=fused.get("turn_actor"),
+                payload=dict(payload),
+            )
+            self.effects.append(eff)
+            for s in self.scenes:
+                if s.scene_id == scene_id:
+                    if eid not in s.effect_ids:
+                        s.effect_ids.append(eid)
+                    break
+            self._effect_counter = max(self._effect_counter, len(self.effects))
 
     # -- persistence ---------------------------------------------------
     def save(self, path: str | Path) -> Path:
@@ -165,90 +448,24 @@ class FusedState:
         fs.restore(data)
         return fs
 
-    # -- OKF bundle export ---------------------------------------------
-    def export_okf(self, bundle_root: str | Path | None = None) -> Path:
-        """Export full fused state as an OKF bundle. Returns bundle root path."""
-        from .okf import OKFBundle
+    # -- projection (idempotent) ------------------------------------------
+    def rebuild_projection(self, db_path: str | Path | None = None) -> Path:
+        """Rebuild SQLite projection from canonical log. Idempotent."""
+        if self.event_log_path is None:
+            raise RuntimeError("cannot build projection without event_log")
+        from .projection import build_projection
 
-        root = Path(bundle_root) if bundle_root else (self.bundle_root or Path("knowledge/fused"))
-        bundle = OKFBundle(root, meta_name="fused-campaign", seed=self.seed)
+        db = Path(db_path) if db_path else self.projection_path
+        if db is None:
+            raise RuntimeError("no projection path")
+        return build_projection(self.event_log_path, db)
 
-        # traits — one concept per trait (stable, separate)
-        for name, traits in sorted(self.traits_registry.items()):
-            fm = traits.to_okf_frontmatter()
-            # ensure description covers OKF required fields
-            body = OKFBundle.body_for_trait(name, traits.traits, traits.flaws, traits.bonds)
-            bundle.write_trait(name, fm, body)
+    def validate_log(self) -> list[str]:
+        if self.event_log_path is None:
+            return []
+        from .events import validate_log
 
-        # characters — thin wrapper linking to traits (game state chars)
-        for cname, ch in {**self.campaign.inner.players, **self.campaign.inner.monsters}.items():
-            slug = cname.lower().replace(" ", "-")
-            fm = {
-                "type": "Character",
-                "title": cname,
-                "description": f"{ch.char_class} HP {ch.hp}/{ch.max_hp} at {ch.pos}",
-                "tags": ["character", ch.char_class],
-                "character_class": ch.char_class,
-                "hp": ch.hp,
-                "max_hp": ch.max_hp,
-                "pos": list(ch.pos),
-                "alive": ch.alive,
-            }
-            trait_ref = (
-                f"/traits/{slug}.md"
-                if slug in [k.lower().replace(" ", "-") for k in self.traits_registry]
-                else "/traits/index.md"
-            )
-            body = OKFBundle.body_for_character(cname, f"Character {cname} ({ch.char_class})", trait_ref)
-            bundle.write_character(cname, fm, body)
-
-        # scenes
-        for sc in self.scenes:
-            fm = sc.to_okf_frontmatter()
-            body = OKFBundle.body_for_scene(sc)
-            bundle.write_scene(sc.scene_id, fm, body)
-
-        # events/effects — append-only log, traversable history
-        for eff in self.effects:
-            fm = eff.to_okf_frontmatter()
-            body = OKFBundle.body_for_event(eff)
-            bundle.write_event(eff.effect_id, fm, body)
-
-        # references: add attested computation marker for OKF 0.2
-        bundle.write_raw(
-            "references/attesters/fused_run.md",
-            {
-                "type": "Attested Computation",
-                "title": "Fused campaign run",
-                "description": "Deterministic campaign run via FusedState",
-                "runtime": "bash",
-                "parameters": [{"name": "bundle_root", "type": "string", "required": True}],
-            },
-            "# Fused Run Attester\n\nRun `uv run fused demo --seed 42` to reproduce.\n",
-        )
-
-        # log
-        if not bundle._log_entries:
-            # seed from effects history
-            for eff in self.effects[-10:]:
-                bundle.add_log(f"Effect {eff.effect_id} — {eff.summary}", kind="Update")
-            if self.scenes:
-                for sc in self.scenes:
-                    bundle.add_log(f"Scene {sc.scene_id}: {sc.title} — {sc.objective}", kind="Create")
-
-        bundle.flush()
-        # validate
-        errs = OKFBundle.validate_bundle(root)
-        if errs:
-            raise RuntimeError(f"OKF validation failed: {errs}")
-        # update handles
-        self.bundle_root = root
-        self._okf = bundle
-        # also log to inner transcript for audit
-        self.campaign.inner.log_tool(
-            "export_okf", {"bundle_root": str(root)}, {"effects": len(self.effects), "concepts": len(bundle._concepts)}
-        )
-        return root
+        return validate_log(self.event_log_path)
 
     # -- traversal helpers for agents ----------------------------------
     def traverse_history(

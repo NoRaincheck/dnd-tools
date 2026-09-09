@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NoRaincheck/dnd-tools/packages/fused/schemas/event.schema.json",
+  "title": "Fused canonical event (CloudEvents-compatible JSONL)",
+  "description": "One line per event in events.jsonl. CloudEvents core + fused extension + domain data. See fused/events.py.",
+  "type": "object",
+  "required": ["specversion", "id", "source", "type", "time", "subject", "fused", "data"],
+  "properties": {
+    "specversion": { "type": "string", "const": "1.0" },
+    "id": { "type": "string", "description": "== Effect.make_id(), unique per effect" },
+    "source": { "type": "string", "description": "CloudEvents source, fused://campaign/<bundle>/scene-id" },
+    "type": {
+      "type": "string",
+      "description": "Controlled vocabulary; extensible with fused.* prefix",
+      "enum": [
+        "fused.trait.registered",
+        "fused.scene.created",
+        "fused.scene.beat_advanced",
+        "fused.scene.resolved",
+        "fused.effect.recorded",
+        "fused.effect.triple_o",
+        "fused.snapshot.taken",
+        "fused.campaign.rest",
+        "fused.campaign.checkpoint"
+      ]
+    },
+    "time": { "type": "string", "format": "date-time" },
+    "subject": { "type": "string", "description": "== Effect.actor" },
+    "traceparent": { "type": "string", "description": "Optional OTel traceparent for cross-scene causality" },
+    "fused": {
+      "type": "object",
+      "required": ["seed", "round", "scene_id", "kind"],
+      "properties": {
+        "seed": { "type": "integer" },
+        "round": { "type": "integer" },
+        "scene_id": { "type": "string" },
+        "scene_title": { "type": "string" },
+        "kind": { "type": "string", "description": "Effect.kind: attack|spell|save|triple-o|scene-beat|trait-register|rest|..." },
+        "beats_index": { "type": "integer" },
+        "turn_actor": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "data": {
+      "type": "object",
+      "required": ["summary", "payload"],
+      "properties": {
+        "summary": { "type": "string" },
+        "payload": { "type": "object" },
+        "snapshot_hash": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "snapshot_ref": { "type": ["string", "null"], "description": "snapshots/<seq>.json when type == fused.snapshot.taken" },
+    "generated": {
+      "type": "object",
+      "properties": {
+        "by": { "type": "string" },
+        "at": { "type": "string", "format": "date-time" }
+      }
+    },
+    "tags": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

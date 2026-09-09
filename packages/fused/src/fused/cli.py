@@ -21,7 +21,6 @@ def cmd_demo(args: argparse.Namespace) -> None:
     ftools = FusedTools(fstate)
     sess = FusedSession(fstate, ftools)
 
-    # default party with explicit traits (separate from event state)
     default_traits = [
         CharacterTraits(
             name="Elaria",
@@ -66,7 +65,6 @@ def cmd_demo(args: argparse.Namespace) -> None:
     ]
     sess.register_party_traits(default_traits)
 
-    # ensure players exist in inner state
     for tr in default_traits:
         cls = (
             tr.archetype
@@ -109,22 +107,26 @@ def cmd_demo(args: argparse.Namespace) -> None:
         for line in r["transcript"][-12:]:
             print(line)
         print(json.dumps({k: r[k] for k in ("players", "monsters", "rounds")}, indent=2))
-    # OKF bundle already exported; show bundle info
-    bundle_path = fstate.bundle_root or bundle_root
-    print("\n=== OKF BUNDLE ===")
-    print(f"Bundle at: {bundle_path}")
+    print("\n=== EVENT LOG (canonical) ===")
+    print(f"Log: {fstate.event_log_path}  ({len(fstate.effects)} events)")
+    print(f"Snapshots: {fstate.snapshots_dir}")
+    print(f"Manifest: {fstate.manifest_path}")
+    # rebuild projection idempotently
+    db = fstate.rebuild_projection()
+    print(f"Projection (derived, idempotent): {db}")
     print(f"Traits registered (separate): {list(fstate.traits_registry.keys())}")
-    print(f"Effects (event state): {len(fstate.effects)}")
-    # list concepts
     for eff in fstate.effects[-5:]:
         print(f"  - {eff.effect_id}: {eff.summary}")
+    # cheap jq examples
+    print("\nCheap queries (no LLM):")
+    print(f"  jq -c 'select(.type==\"fused.effect.recorded\")' {fstate.event_log_path}")
+    print(f'  sqlite3 {db} "SELECT subject, kind, summary FROM events ORDER BY seq DESC LIMIT 5"')
     if args.save:
         out = Path(args.save)
         out.write_text(json.dumps([r["tool_trace"] for r in results], indent=2))
         fstate.save(Path(args.save).with_suffix(".fused.json"))
         print(f"saved traces to {args.save}")
 
-    # traversal demo: agent loading context before acting
     print("\n=== AGENT TRAVERSAL DEMO (get_context for Elaria) ===")
     ctx = ftools.get_context("Elaria", last_n=5)
     print(json.dumps(ctx, indent=2, default=str))
@@ -133,42 +135,58 @@ def cmd_demo(args: argparse.Namespace) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(prog="fused")
     sub = p.add_subparsers(dest="cmd", required=True)
-    d = sub.add_parser("demo", help="Run 2-scene fused campaign demo (scenes + Triple-O + OKF bundle)")
+    d = sub.add_parser("demo", help="Run 2-scene fused campaign demo (scenes + Triple-O + JSONL event log)")
     d.add_argument("--seed", type=int, default=42)
     d.add_argument("--turns", type=int, default=12)
-    d.add_argument("--bundle", type=str, default="", help="OKF bundle root (default knowledge/fused-demo)")
+    d.add_argument(
+        "--bundle", type=str, default="", help="Campaign root (default knowledge/fused-demo) — holds events.jsonl"
+    )
     d.add_argument("--no-triple-o", action="store_true", help="Disable Triple-O creativity harness")
     d.add_argument("--save", type=str, default="")
     d.add_argument("--use-llm", action="store_true", help="Use Tau LLM (requires LMStudio at :1234)")
     d.add_argument("--base-url", default="http://127.0.0.1:1234/v1")
     d.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
 
-    d2 = sub.add_parser("export", help="Export existing fused save as OKF bundle")
-    d2.add_argument("save", type=str, help="Path to .fused.json save")
-    d2.add_argument("--bundle", type=str, default="knowledge/fused")
+    d2 = sub.add_parser("validate", help="Validate canonical event log")
+    d2.add_argument("--log", type=str, default="knowledge/fused-demo/events.jsonl")
+
+    d3 = sub.add_parser("build-projection", help="Rebuild SQLite projection from event log (idempotent)")
+    d3.add_argument("--log", type=str, default="knowledge/fused-demo/events.jsonl")
+    d3.add_argument("--db", type=str, default="knowledge/fused-demo/projections/campaign.db")
+
+    d4 = sub.add_parser("replay", help="Replay event log into state (snapshot + events)")
+    d4.add_argument("--log", type=str, default="knowledge/fused-demo/events.jsonl")
+    d4.add_argument("--at-seq", type=int, default=None, help="Replay until seq (exclusive)")
+
     args = p.parse_args()
     if args.cmd == "demo":
-        # wire LLM if requested — reuse Triple-O / dnd-tools LLM plumbing
         if args.use_llm:
             from dnd_tools.agents import LLMClient as TauLLM  # type: ignore[import-untyped]
 
-            # not wired into heuristic path yet; show hint
             _ = TauLLM
             print(
                 f"[fused] --use-llm requested (model {args.model} at {args.base_url}) — demo runs heuristic+Triple-O; wire via session.run_scene(llm=...)"
             )
         cmd_demo(args)
-    elif args.cmd == "export":
-        fs = FusedState.load(args.save)
-        out = fs.export_okf(bundle_root=args.bundle)
-        print(f"Exported OKF bundle to {out}")
-        # also write index validation
-        from .okf import OKFBundle
+    elif args.cmd == "validate":
+        from .events import validate_log
 
-        errs = OKFBundle.validate_bundle(out)
-        print(f"Validation: {'OK' if not errs else errs}")
+        errs = validate_log(args.log)
+        if errs:
+            print("INVALID:")
+            for e in errs:
+                print(f"  - {e}")
+            raise SystemExit(1)
+        print(f"OK — {args.log} valid")
+    elif args.cmd == "build-projection":
+        from .projection import build_projection
 
-    # ensure pathlib is available for any future use
+        out = build_projection(args.log, args.db)
+        print(f"Projection (re)built at {out} — idempotent, delete and rerun to verify")
+    elif args.cmd == "replay":
+        fs = FusedState.from_log(args.log, at_seq=args.at_seq)
+        print(f"Replayed to seq {args.at_seq or len(fs.effects)} — {len(fs.effects)} effects, {len(fs.scenes)} scenes")
+
     _ = pathlib
 
 
