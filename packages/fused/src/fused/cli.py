@@ -158,6 +158,16 @@ def main() -> None:
     d4.add_argument("--log", type=str, default="knowledge/fused-demo/events.jsonl")
     d4.add_argument("--at-seq", type=int, default=None, help="Replay until seq (exclusive)")
 
+    d5 = sub.add_parser("build-site", help="Build static site from knowledge bundle (rewind/playthrough)")
+    d5.add_argument(
+        "--bundle",
+        type=str,
+        default="knowledge/fused-demo",
+        help="Bundle dir or events.jsonl (default knowledge/fused-demo)",
+    )
+    d5.add_argument("--out", type=str, default="", help="Output dir (default <bundle>/site)")
+    d5.add_argument("--title", type=str, default="", help="Page title (default derived from seed)")
+
     args = p.parse_args()
     if args.cmd == "demo":
         if args.use_llm:
@@ -186,6 +196,15 @@ def main() -> None:
     elif args.cmd == "replay":
         fs = FusedState.from_log(args.log, at_seq=args.at_seq)
         print(f"Replayed to seq {args.at_seq or len(fs.effects)} — {len(fs.effects)} effects, {len(fs.scenes)} scenes")
+    elif args.cmd == "build-site":
+        from .site import build_site
+
+        out = build_site(bundle_root=args.bundle, out_dir=args.out or None, title=args.title or None)
+        print(
+            f"Static site built at {out}/index.html — open file://{out / 'index.html'} or serve via: python -m http.server --directory {out} 8000"
+        )
+        print(f"  events: {out / 'events.jsonl'}  data: {out / 'data.json'}  (file:// friendly, no server required)")
+        print(f"  Try: open {out / 'index.html'}#seq=5  (deep-link) and use slider/Play/←→/Space to rewind/playthrough")
 
     _ = pathlib
 

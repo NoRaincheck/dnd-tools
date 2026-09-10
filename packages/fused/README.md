@@ -40,6 +40,10 @@ uv run fused validate --log knowledge/fused-demo/events.jsonl
 uv run fused build-projection --log knowledge/fused-demo/events.jsonl --db knowledge/fused-demo/projections/campaign.db
 sqlite3 knowledge/fused-demo/projections/campaign.db "SELECT subject, kind, summary FROM events ORDER BY seq DESC LIMIT 5"
 uv run fused replay --log knowledge/fused-demo/events.jsonl --at-seq 10
+# static site with rewind/playthrough (file:// friendly, no server required)
+uv run fused build-site --bundle knowledge/fused-demo --out knowledge/fused-demo/site
+open knowledge/fused-demo/site/index.html#seq=5  # slider + Play/Pause + ←→/Space + hash deep-link
+python -m http.server --directory knowledge/fused-demo/site 8000
 ```
 
 LLM (optional):
@@ -59,6 +63,24 @@ jq -c 'select(.data.payload.wound != null) | {actor: .subject, wound: .data.payl
 # HP timeline for Elaria (DuckDB, columnar)
 duckdb -c "SELECT subject, count(*) AS wounds FROM read_json('knowledge/fused-demo/events.jsonl') WHERE type='fused.effect.recorded' GROUP BY subject"
 ```
+
+## Static site (rewind / playthrough)
+
+`fused build-site` turns the canonical `events.jsonl` + derived `timeline` states into a fully static, `file://`-friendly site — no server, no build step.
+
+```bash
+uv run fused build-site --bundle knowledge/fused-demo --out knowledge/fused-demo/site --title "Fused Campaign"
+# outputs: site/index.html (embedded events+timeline) + site/data.json + site/events.jsonl
+```
+
+Features (all client-side, after precomputing states at build time via `FusedState._apply_event`):
+
+- **Scrubbable timeline**: range slider `0..N` (0 = before any event), click any event to jump, hash `#seq=10` deep-links.
+- **Rewind / playthrough**: `⏮ ◀ ▶/⏸ ▶▶ ⏭`, autoplay with speed `0.5×/1×/2×/4×`, loop toggle, `Space`/`←`/`→`/`Home`/`End` keys.
+- **State @ seq panel**: clocks (filled bar + `ticks/segments`), active scene, stress, characters (HP/pos), transcript tail, diff vs previous (`+clock`, `~tick`, `+traits`), and raw JSON.
+- **File:// safe**: all data embedded via `<script type="application/json">` — no `fetch`, works by double-clicking `index.html`.
+
+See `packages/fused/src/fused/site.py:1` (`build_site`, `build_timeline`, `collect_bundle`).
 
 ## Tools (LLM-visible)
 

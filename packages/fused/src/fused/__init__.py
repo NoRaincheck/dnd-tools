@@ -28,6 +28,7 @@ Quickstart::
     cat knowledge/fused-demo/events.jsonl | jq .
     uv run fused validate --log knowledge/fused-demo/events.jsonl
     uv run fused build-projection --log knowledge/fused-demo/events.jsonl --db /tmp/campaign.db
+    uv run fused build-site --bundle knowledge/fused-demo  # rewind/playthrough static site → knowledge/fused-demo/site/index.html
 """
 
 from __future__ import annotations
@@ -48,6 +49,7 @@ from .models import (
 )
 from .projection import build_projection
 from .session import FusedSession
+from .site import build_site, build_timeline, collect_bundle
 from .state import FusedState
 from .tools import FusedTools
 
@@ -68,6 +70,9 @@ __all__ = [
     "append_event",
     "build_agent_context",
     "build_projection",
+    "build_site",
+    "build_timeline",
+    "collect_bundle",
     "compact_fused_transcript",
     "iter_events",
     "summarize_fused",

@@ -32,6 +32,9 @@
   @media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
   @media(max-width:520px){.grid4{grid-template-columns:1fr}}
   .card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff}
+  .card.clickable{cursor:pointer;transition:box-shadow .15s,transform .15s,border-color .15s}
+  .card.clickable:hover{box-shadow:0 4px 12px rgba(29,78,216,.12);transform:translateY(-1px);border-color:var(--accent)}
+  .card.clickable:focus{outline:2px solid var(--accent);outline-offset:2px}
   .card .k{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
   .card .v{font-size:1.35rem;font-weight:800;color:var(--accent)}
   .card .sub{font-size:.78rem;color:var(--muted)}
@@ -131,12 +134,13 @@
 
   <section id="scenes">
     <h2>Scenes <span class="count">{{ scenes.size }}</span></h2>
+    <p class="small muted">Click any scenario to <strong>filter the timeline</strong> to that scenario. Each card also anchors to <code>#scene-&lt;id&gt;</code> detail.</p>
     {% if scenes.size == 0 %}<div class="empty">No scenes — run <code>fused demo --seed {{ campaign.seed }}</code></div>{% endif %}
     <div class="grid2">
     {% for scene in scenes %}
-      <div class="card">
-        <div class="k">{{ scene.scene_id }}</div>
-        <div style="font-weight:700">{{ scene.title }}</div>
+      <div class="card clickable" onclick="filterByScene('{{ scene.scene_id }}')" role="button" tabindex="0" onkeydown="if(event.key==='Enter') filterByScene('{{ scene.scene_id }}')" title="Click to filter timeline to this scenario">
+        <div class="k">{{ scene.scene_id }} <span class="pill" style="float:right">→ View scenario</span></div>
+        <div style="font-weight:700">{{ scene.title }} <a href="#scene-{{ scene.scene_id }}" onclick="event.stopPropagation()" class="small muted" style="text-decoration:none">#</a></div>
         <div class="small muted">{{ scene.objective }}</div>
         <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
           <span class="pill">{{ scene.location }}</span>
@@ -156,6 +160,15 @@
       </div>
     {% endfor %}
     </div>
+    {% for scene in scenes %}
+      <section id="scene-{{ scene.scene_id }}" style="margin-top:10px;padding:12px;background:#f9fbff;border-color:#bfdbfe">
+        <div class="k">Scenario detail</div>
+        <div style="font-weight:700">{{ scene.title }} <span class="pill">{{ scene.scene_id }}</span></div>
+        <div class="small muted">{{ scene.objective }}</div>
+        <div class="small"><b>Cast:</b> {{ scene.cast | join: ", " }} · <b>Threat:</b> {{ scene.threat }} · <b>Status:</b> {{ scene.status }}</div>
+        <div style="margin-top:6px"><a href="#timeline" onclick="filterByScene('{{ scene.scene_id }}'); return false;" class="pill" style="text-decoration:none">▶ Filter timeline to this scenario</a> <a href="#scenes" class="pill" style="text-decoration:none">↑ Back to scenes</a></div>
+      </section>
+    {% endfor %}
   </section>
 
   <section id="traits">
@@ -201,8 +214,10 @@
     <div class="controls">
       <select id="filter-type"><option value="">All types</option>{% for t in filter_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
       <select id="filter-kind"><option value="">All kinds</option>{% for k in filter_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
+      <select id="filter-scene"><option value="">All scenarios</option>{% for scene in scenes %}<option value="{{ scene.scene_id }}">{{ scene.scene_id }} — {{ scene.title | truncate: 28 }}</option>{% endfor %}</select>
       <input id="filter-text" placeholder="filter text (actor, summary, scene)">
       <button onclick="clearFilters()" class="ghost">Clear</button>
+      <span class="small muted" id="filter-count"></span>
     </div>
     <div class="timeline" id="timeline-list">
     {% for e in events %}
@@ -258,22 +273,61 @@ duckdb -c "SELECT type, count(*) FROM read_json('{{ campaign.events_path }}') GR
 </div></main>
 <footer><div class="wrap">Fused Knowledge Viewer · Liquid {{ liquid_version }} · <code>packages/fused/templates/knowledge.liquid</code> → <code>{{ campaign.bundle }}/index.html</code> · Single-file, no external deps. · <a href="https://github.com/NoRaincheck/dnd-tools">dnd-tools</a></div></footer>
 <script>
-function clearFilters(){document.getElementById('filter-type').value='';document.getElementById('filter-text').value='';document.getElementById('filter-kind').value='';apply()}
+function clearFilters(){
+  document.getElementById('filter-type').value='';
+  document.getElementById('filter-kind').value='';
+  const fs=document.getElementById('filter-scene'); if(fs) fs.value='';
+  document.getElementById('filter-text').value='';
+  history.replaceState(null,'',location.pathname+location.search);
+  apply();
+}
+function filterByScene(sid){
+  const fs=document.getElementById('filter-scene');
+  if(fs) fs.value=sid;
+  apply();
+  document.getElementById('timeline').scrollIntoView({behavior:'smooth',block:'start'});
+  try{ history.replaceState(null,'','#scene='+encodeURIComponent(sid)); }catch(e){ location.hash='#scene='+sid; }
+}
 function apply(){
   const t=document.getElementById('filter-type').value;
   const k=document.getElementById('filter-kind').value;
+  const sEl=document.getElementById('filter-scene');
+  const s=sEl ? sEl.value : '';
   const q=document.getElementById('filter-text').value.toLowerCase();
+  let visible=0;
   document.querySelectorAll('.tl-item').forEach(el=>{
     const okT=!t||el.dataset.type===t;
     const okK=!k||el.dataset.kind===k;
+    const okS=!s||el.dataset.scene===s;
     const txt=el.innerText.toLowerCase();
     const okQ=!q||txt.includes(q);
-    el.style.display=(okT&&okK&&okQ)?'':'none';
-  })
+    const show = okT&&okK&&okS&&okQ;
+    el.style.display=show?'':'none';
+    if(show) visible++;
+  });
+  const cnt=document.getElementById('filter-count');
+  if(cnt) cnt.textContent = visible+' visible';
 }
+// handle #scene-xxx deep link on load
+(function(){
+  const h=location.hash||'';
+  const m=h.match(/scene=([^&]+)/);
+  let sid=null;
+  if(m) sid=decodeURIComponent(m[1]);
+  else if(h.indexOf('#scene-')===0) sid=decodeURIComponent(h.slice(7).split('&')[0]);
+  if(sid){
+    const fs=document.getElementById('filter-scene');
+    if(fs){
+      let found=false; for(let i=0;i<fs.options.length;i++) if(fs.options[i].value===sid){found=true;break;}
+      if(found) fs.value=sid; else fs.value=sid;
+    }
+  }
+})();
 document.getElementById('filter-type').addEventListener('change',apply);
 document.getElementById('filter-kind').addEventListener('change',apply);
+const _fs=document.getElementById('filter-scene'); if(_fs) _fs.addEventListener('change',apply);
 document.getElementById('filter-text').addEventListener('input',apply);
+apply();
 </script>
 </body>
 </html>
