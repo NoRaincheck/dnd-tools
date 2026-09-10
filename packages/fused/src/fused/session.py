@@ -107,35 +107,32 @@ class FusedSession:
             raise RuntimeError("no active scene — call add_scene_with_encounter first")
         scene.status = SceneStatus.active
 
-        # inject Triple-O creativity before each player turn via a wrapper
-        # We achieve this by monkey-patching heuristic turn when use_triple_o.
-        # For MVP: just record a triple-o effect per player turn and delegate
-        # to the standard Simulation. Full per-turn harness is LLM path.
+        # inject campaign Choices (Triple-O + Position/Effect + Say Yes) before combat
+        # Each player gets a dilemma via the ChoiceResolver; trivial choices Say Yes
+        # automatically to Obvious but remain visible as logged choices.
         if use_triple_o and use_heuristic:
-            # Pre-roll a Triple-O decision per player to flavour narration
-            # Effects are recorded so event-log history captures the creativity signal.
             for pname in list(self.fstate.campaign.inner.players.keys()):
                 tr = self.fstate.get_traits(pname)
                 trait_list = tr.traits if tr else [self.fstate.campaign.inner.players[pname].char_class]
                 situation = f"Scene {scene.scene_id}: {scene.objective} — what does {pname} do?"
-                # Simple heuristic proposals
                 obvious = f"{pname} holds position and attacks the nearest foe"
                 option = f"{pname} repositions for flanking"
                 odd = f"{pname} tries an impulsive stunt"
-                res = self.triple_mw.run_heuristic(
-                    player_name=pname,
-                    traits=trait_list,
-                    situation=situation,
-                    obvious=obvious,
-                    option=option,
-                    odd=odd,
+                # risk assessment: trivial for first player in low-threat scenes
+                # Demonstrate both paths: controlled→Say Yes, risky/desparate→roll
+                if len(self.fstate.choices) % 3 == 0 and scene.threat.lower() in ("unknown", "none", ""):
+                    position, effect = "controlled", "limited"
+                elif pname == next(iter(self.fstate.campaign.inner.players.keys())):
+                    position, effect = "controlled", "standard"
+                else:
+                    position, effect = "risky", "standard"
+                choice = self.fstate.propose_choice(
+                    pname, situation, obvious, option, odd, traits=trait_list, position=position, effect=effect
                 )
-                self.fstate.record_effect(
-                    "triple-o",
-                    pname,
-                    f"Triple-O {res['roll']['category']}: {res['roll']['choice']}",
-                    payload={"roll": res["roll"], "situation": situation},
-                    scene_id=scene.scene_id,
+                resolved = self.fstate.resolve_choice(choice.choice_id)
+                # keep legacy triple-o effect for backward compat, but also log choice
+                self.fstate.campaign.inner.add_transcript(
+                    f"[choice {resolved.choice_id}] {pname} {resolved.category} via {resolved.resolved_via}: {resolved.choice_text}{' — Say Yes trivial: ' + resolved.trivial_reason if resolved.trivial else ''}"
                 )
 
         sim = Simulation(
@@ -162,6 +159,52 @@ class FusedSession:
         if len(self.fstate.campaign.inner.tool_trace) > 400:
             self.fstate.campaign.prune_traces(keep_last=300)
         return res
+
+    def run_campaign_via_choices(
+        self,
+        choice_specs: list[dict[str, Any]],
+        scene_id: str = "scene-choices",
+        scene_title: str = "Choice-driven Campaign",
+        scene_objective: str = "Unfold campaign through LLM-derived choices",
+    ) -> list[dict[str, Any]]:
+        """Run a pure choice-driven campaign (no combat) — sequence of dilemmas.
+
+        Each spec is a Choice proposal: {actor, situation, obvious, option, odd, position, effect, traits}
+        LLM would generate these; heuristic supplies defaults. Demonstrates Say Yes for trivial.
+        """
+        cur = self.fstate.current_scene()
+        if not cur or cur.scene_id != scene_id:
+            scene = Scene(scene_id=scene_id, title=scene_title, objective=scene_objective, beats=[], cast=[])
+            self.fstate.add_scene(scene)
+        results: list[dict[str, Any]] = []
+        for spec in choice_specs:
+            actor = spec.get("actor", "GM")
+            situation = spec.get("situation", "dilemma")
+            obvious = spec["obvious"]
+            option = spec["option"]
+            odd = spec["odd"]
+            position = spec.get("position", "risky")
+            effect = spec.get("effect", "standard")
+            traits = spec.get("traits")
+            ch = self.fstate.propose_choice(
+                actor, situation, obvious, option, odd, traits=traits, position=position, effect=effect
+            )
+            resolved = self.fstate.resolve_choice(ch.choice_id, advantage=spec.get("advantage"))
+            results.append(
+                {
+                    "choice_id": resolved.choice_id,
+                    "situation": situation,
+                    "proposal": {"obvious": obvious, "option": option, "odd": odd},
+                    "position": position,
+                    "effect": effect,
+                    "trivial": resolved.trivial,
+                    "resolved_via": resolved.resolved_via,
+                    "category": resolved.category,
+                    "choice": resolved.choice_text,
+                    "reason": resolved.trivial_reason,
+                }
+            )
+        return results
 
     def run_campaign(
         self,

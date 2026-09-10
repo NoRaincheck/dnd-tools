@@ -241,6 +241,46 @@ class Effect:
 
 
 @dataclasses.dataclass
+class Choice:
+    """A campaign-level choice — LLM-proposed Triple-O branches + risk assessment.
+
+    Mirrors Burning Wheel `Say Yes or Roll` and GUMSHOE core-clue automaticity:
+    if stakes are trivial (Position=controlled, no clock/threat, not belief-critical)
+    the Obvious branch auto-resolves via Say Yes — but still appears as a logged
+    choice with reason, satisfying 'show it appeared as trivial'.
+    """
+
+    choice_id: str
+    scene_id: str
+    actor: str
+    situation: str
+    obvious: str
+    option: str
+    odd: str
+    traits: list[str] = dataclasses.field(default_factory=list)
+    # risk gate (Blades Position/Effect)
+    position: str = "risky"
+    effect: str = "standard"
+    # assessment
+    trivial: bool = False
+    trivial_reason: str = ""
+    # resolution
+    roll: int | None = None
+    rolls: list[int] = dataclasses.field(default_factory=list)
+    category: str | None = None  # obvious/option/odd
+    choice_text: str | None = None
+    resolved_via: str = "rolled"  # rolled | say_yes | auto_trivial
+    ticks: int = 0
+    payload: dict[str, object] = dataclasses.field(default_factory=dict)
+
+    @staticmethod
+    def make_id(scene_id: str, counter: int, actor: str) -> str:
+        base = f"{scene_id}-{counter:04d}-choice-{actor}"
+        h = hashlib.sha256(base.encode()).hexdigest()[:8]
+        return f"{scene_id}-choice-{counter:04d}-{h}"
+
+
+@dataclasses.dataclass
 class CampaignBundleMeta:
     name: str = "fused-campaign"
     description: str = "Fused TTRPG campaign — Triple-O + scenes + OKF event bundle"
