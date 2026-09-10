@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adventure — Single-Scene Choose-Your-Adventure</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="pill" style="margin-bottom:6px">Fused · Single Scene · User select → Roll → LLM narrate</div>
+    <h1>Choose Your Adventure</h1>
+    <p class="subtitle">Play one scene, beat by beat. Each turn you pick 1 of 3 LLM-authored options — the die still decides if the "safe" pick succeeds (risky/standard → <code>action_roll</code>). Auto mode lets Triple-O <code>1d6</code> pick for you. Story lays out automatically at the end.</p>
+  </div>
+</header>
+<main class="wrap">
+
+  <section id="setup">
+    <h2>Start a scene <span class="pill" id="setup-pill">pick a template</span></h2>
+    <div class="controls">
+      <select id="template"></select>
+      <input id="actor" value="Elaria" placeholder="Actor name" style="width:140px">
+      <input id="seed" type="number" value="42" placeholder="seed" style="width:110px" title="Seed for dice determinism">
+      <span class="pill" id="template-meta"></span>
+      <button id="btn-start">Start scene</button>
+      <button id="btn-restart" class="ghost" style="display:none">New scene</button>
+    </div>
+    <div class="small muted" id="template-desc"></div>
+  </section>
+
+  <section id="play" style="display:none">
+    <h2>Scene <span class="pill" id="scene-title">—</span> <span class="pill" id="scene-objective" style="background:#fff"></span> <span class="pill" id="game-id" style="background:#fff"></span></h2>
+    <div style="display:flex;gap:10px;align-items:center;margin:8px 0">
+      <div style="flex:1"><div class="small muted">Progress clock <span id="clock-label"></span></div><div class="clock-bar"><div id="clock-fill" class="clock-fill" style="width:0%"></div></div></div>
+      <span id="clock-pill" class="pill">0/6</span>
+      <span id="status-pill" class="pill">active</span>
+    </div>
+
+    <div id="turn-area"></div>
+
+    <div class="controls" style="border-top:1px dashed var(--border);padding-top:12px;margin-top:12px">
+      <label class="small"><input type="checkbox" id="auto"> Auto-proceed (LLM rolls/chooses)</label>
+      <select id="auto-delay"><option value="900">0.9s</option><option value="1400" selected>1.4s</option><option value="2200">2.2s</option></select>
+      <button id="btn-auto-step" class="ghost">Step auto once</button>
+      <label class="small muted"><input type="checkbox" id="show-rolls" checked> Show rolls</label>
+    </div>
+  </section>
+
+  <section id="story-sec" style="display:none">
+    <h2>Story <span class="pill" id="story-pill">0 turns</span></h2>
+    <div class="story-controls">
+      <label class="small"><input type="checkbox" id="toggle-choices" checked> Show choices offered</label>
+      <label class="small"><input type="checkbox" id="toggle-chosen" checked> Highlight chosen</label>
+      <label class="small"><input type="checkbox" id="toggle-rolls" checked> Show outcome/rolls</label>
+      <button id="btn-copy" class="ghost small">Copy story</button>
+      <button id="btn-hide-choices" class="ghost small">Hide non-chosen</button>
+    </div>
+    <div id="story" class="story" style="border:1px solid var(--border);border-radius:8px;padding:12px;background:#fcfcff;min-height:56px"></div>
+    <div id="timeline" style="margin-top:12px"></div>
+    <div class="small muted" style="margin-top:8px">At scene end the full story is laid out automatically above — each beat's 3 options are dimmed, chosen is accented. Toggle controls change styling without losing history. Rolls are via <code>action_roll</code> (1d6 pool, 6 success /4-5 partial /1-3 failure, ticks per Effect).</div>
+  </section>
+
+  <section id="debug" style="display:none">
+    <h2>Debug</h2>
+    <pre id="debug-pre" class="small" style="max-height:320px;overflow:auto;background:var(--code-bg);border:1px solid var(--border);padding:10px;border-radius:8px"></pre>
+  </section>
+
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>
