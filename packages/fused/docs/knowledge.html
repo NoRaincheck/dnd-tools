@@ -1,0 +1,3672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fused Campaign — Knowledge Viewer — Fused Knowledge</title>
+<meta name="description" content="Fused campaign knowledge viewer — JSONL events, scenes, choices, projections">
+<style>
+  :root{--bg:#fcfcfa;--fg:#171717;--accent:#1d4ed8;--accent2:#7c3aed;--muted:#6b7280;--border:#e5e7eb;--code-bg:#f3f4f6;--callout:#eff6ff;--max:1080px;--radius:12px;--ok:#16a34a;--warn:#d97706}
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;font:14px/1.6 ui-sans,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--fg)}
+  header{border-bottom:3px solid var(--accent);background:linear-gradient(180deg,#fff,#f0f7ff)}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 18px}
+  header .wrap{padding:24px 18px 14px}
+  h1{margin:0 0 4px;font-size:1.55rem;letter-spacing:-.02em;color:var(--accent)}
+  .subtitle{margin:0;color:var(--muted);font-size:.9rem}
+  .chips{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .chip{padding:3px 9px;border-radius:999px;background:#fff;border:1px solid var(--border);font-size:.75rem;color:var(--muted)}
+  .chip.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+  nav.toc{position:sticky;top:0;z-index:10;background:rgba(252,252,250,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+  nav.toc .wrap{display:flex;gap:10px;overflow:auto;white-space:nowrap;padding:8px 18px}
+  nav.toc a{color:var(--muted);text-decoration:none;font-size:.84rem;padding:5px 10px;border-radius:999px}
+  nav.toc a:hover{background:var(--code-bg);color:var(--accent)}
+  main .wrap{padding:16px 18px 50px}
+  section{margin:18px 0 22px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  h2{margin:0 0 8px;font-size:1.15rem;color:var(--accent);border-bottom:2px solid var(--border);padding-bottom:6px;display:flex;gap:8px;align-items:center}
+  h2 .count{font-size:.75rem;background:var(--code-bg);border:1px solid var(--border);padding:2px 7px;border-radius:999px;color:var(--muted);font-weight:600}
+  h3{margin:14px 0 6px;font-size:.98rem;color:#222}
+  p{margin:6px 0}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+  @media(max-width:520px){.grid4{grid-template-columns:1fr}}
+  .card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff}
+  .card .k{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .card .v{font-size:1.35rem;font-weight:800;color:var(--accent)}
+  .card .sub{font-size:.78rem;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:.84rem}
+  th{ text-align:left;background:#f9fafb;border-bottom:2px solid var(--border);padding:6px 7px;font-weight:700;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  td{padding:6px 7px;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:var(--code-bg);border:1px solid var(--border);padding:10px;border-radius:8px;overflow:auto;font-size:.8rem;line-height:1.45}
+  code{background:var(--code-bg);padding:1px 4px;border-radius:4px;font-size:.86em}
+  pre code{background:none;padding:0}
+  .pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--code-bg);border:1px solid var(--border);font-size:.72rem;color:var(--muted)}
+  .pill.say_yes{background:#dcfce7;border-color:#86efac;color:#166534}
+  .pill.rolled{background:#dbeafe;border-color:#93c5fd;color:#1e40af}
+  .pill.odd{background:#ffe4e6;border-color:#fda4af;color:#9f1239}
+  .pill.obvious{background:#fef9c3;border-color:#fde047;color:#854d0e}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+  .controls select,.controls input{padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:.84rem}
+  .controls button{padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+  .controls button.ghost{background:#fff;color:var(--accent)}
+  .muted{color:var(--muted)} .small{font-size:.82rem}
+  .timeline{border-left:2px solid var(--border);margin-left:8px;padding-left:0}
+  .tl-item{position:relative;padding:8px 0 8px 16px;border-bottom:1px dashed var(--border)}
+  .tl-item::before{content:"";position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+  .tl-item.choice::before{background:var(--accent2)}
+  .tl-meta{font-size:.76rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+  .hl{font-weight:700}
+  details{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:#fcfcff;margin:8px 0}
+  details summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:.86rem}
+  .json{white-space:pre-wrap;word-break:break-all}
+  footer{border-top:1px solid var(--border);color:var(--muted);font-size:.78rem;padding:14px 0}
+  .empty{padding:18px;text-align:center;color:var(--muted);background:var(--code-bg);border:1px dashed var(--border);border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="pill" style="margin-bottom:6px">Fused Knowledge · JSONL · CloudEvents · Liquid-rendered</div>
+    <h1>Fused Campaign — Knowledge Viewer</h1>
+    <p class="subtitle">JSONL · CloudEvents · Snapshots · Projections — <code>knowledge/fused-demo</code> · seed <strong>42</strong> · 35 events · 2 scenes · rendered 2026-09-10</p>
+    <div class="chips">
+      <span class="chip accent">seed 42</span>
+      <span class="chip">35 events</span>
+      <span class="chip">2 scenes</span>
+      <span class="chip">6 traits</span>
+      <span class="chip">1 snapshots</span>
+      <span class="chip">Liquid 2.3.1</span>
+      <span class="chip">head scene-00-0001-3028951e</span>
+    </div>
+  </div>
+</header>
+<nav class="toc" aria-label="Table of contents">
+  <div class="wrap">
+    <a href="#overview">Overview</a>
+    <a href="#scenes">Scenes</a>
+    <a href="#traits">Traits</a>
+    <a href="#choices">Choices</a>
+    <a href="#timeline">Timeline</a>
+    <a href="#knowledge">Knowledge</a>
+    <a href="#raw">Raw JSONL</a>
+  </div>
+</nav>
+<main><div class="wrap">
+
+  <section id="overview">
+    <h2>Overview <span class="count">35 events</span></h2>
+    <div class="grid4">
+      <div class="card"><div class="k">Events</div><div class="v">35</div><div class="sub">append-only JSONL, CloudEvents 1.0</div></div>
+      <div class="card"><div class="k">Scenes</div><div class="v">2</div><div class="sub">narrative structure</div></div>
+      <div class="card"><div class="k">Traits</div><div class="v">6</div><div class="sub">separate store</div></div>
+      <div class="card"><div class="k">Snapshots</div><div class="v">1</div><div class="sub">+ manifest replay</div></div>
+    </div>
+    <div class="grid2">
+      <div>
+        <h3>By type</h3>
+        <table><thead><tr><th>Type</th><th>Count</th></tr></thead><tbody>
+        <tr><td><code>fused.campaign.rest</code></td><td>1</td></tr><tr><td><code>fused.choice.proposed</code></td><td>8</td></tr><tr><td><code>fused.choice.resolved</code></td><td>8</td></tr><tr><td><code>fused.effect.recorded</code></td><td>9</td></tr><tr><td><code>fused.scene.created</code></td><td>2</td></tr><tr><td><code>fused.snapshot.taken</code></td><td>1</td></tr><tr><td><code>fused.trait.registered</code></td><td>6</td></tr>
+        </tbody></table>
+      </div>
+      <div>
+        <h3>By kind</h3>
+        <table><thead><tr><th>Kind</th><th>Count</th></tr></thead><tbody>
+        <tr><td><code>choice</code></td><td>16</td></tr><tr><td><code>clock-tick</code></td><td>5</td></tr><tr><td><code>encounter-start</code></td><td>2</td></tr><tr><td><code>long-rest</code></td><td>1</td></tr><tr><td><code>scene-create</code></td><td>2</td></tr><tr><td><code>scene-end</code></td><td>2</td></tr><tr><td><code>snapshot</code></td><td>1</td></tr><tr><td><code>trait-register</code></td><td>6</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+    <p class="small muted">Canonical log: <code>knowledge/fused-demo/events.jsonl</code> · Manifest <code>knowledge/fused-demo/manifest.json</code> · DB <code>knowledge/fused-demo/projections/campaign.db</code> (derived, idempotent).</p>
+    
+    <p class="small" style="color:var(--ok)">✓ Log validates (CloudEvents 1.0, fused.* types).</p>
+    
+  </section>
+
+  <section id="scenes">
+    <h2>Scenes <span class="count">2</span></h2>
+    
+    <div class="grid2">
+    
+      <div class="card">
+        <div class="k">scene-01-goblin-ambush</div>
+        <div style="font-weight:700">Goblin Ambush</div>
+        <div class="small muted">Survive the ambush on the road to Tanglewood</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill">Wilderlands</span>
+          <span class="pill">Goblin raiders</span>
+          <span class="pill">beats 3</span>
+          <span class="pill">cast 4</span>
+        </div>
+        
+        <div style="margin-top:8px">
+          <div class="k">Clocks</div>
+          <div class="small"><code>scene-01-goblin-ambush-progress</code> 0/6 obstacle </div>
+        </div>
+        
+        
+        <details><summary>Beats (3)</summary><ol class="small"><li>Patrol sets out</li><li>Ambushed on road</li><li>Hold or flee</li></ol></details>
+        
+      </div>
+    
+      <div class="card">
+        <div class="k">scene-02-kennel</div>
+        <div style="font-weight:700">The Kennel</div>
+        <div class="small muted">Clear the kennels and recover Wyldfyre</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill">Undercity</span>
+          <span class="pill">Cultists</span>
+          <span class="pill">beats 3</span>
+          <span class="pill">cast 4</span>
+        </div>
+        
+        <div style="margin-top:8px">
+          <div class="k">Clocks</div>
+          <div class="small"><code>scene-02-kennel-progress</code> 0/6 obstacle </div>
+        </div>
+        
+        
+        <details><summary>Beats (3)</summary><ol class="small"><li>Enter kennels</li><li>Rescue hostage</li><li>Escape with Wyldfyre</li></ol></details>
+        
+      </div>
+    
+    </div>
+  </section>
+
+  <section id="traits">
+    <h2>Traits <span class="count">6</span></h2>
+    
+    <table><thead><tr><th>Name</th><th>Archetype</th><th>Traits</th></tr></thead><tbody>
+    <tr><td><strong>Elaria</strong> <span class="muted">(elf, )</span></td><td>ranger</td><td>Suspicious of authority, Always ready to fight</td></tr><tr><td><strong>Briana</strong> <span class="muted">(human, )</span></td><td>wizard</td><td>Inquisitive / Curious</td></tr><tr><td><strong>Thalion</strong> <span class="muted">(human, )</span></td><td>fighter</td><td>Helpful / Cooperative</td></tr><tr><td><strong>Mira</strong> <span class="muted">(dwarf, )</span></td><td>cleric</td><td>Cautious / Defensive</td></tr><tr><td><strong>Elaria</strong> <span class="muted">(human, )</span></td><td>ranger</td><td>brave, keen eye</td></tr><tr><td><strong>Borin</strong> <span class="muted">(human, )</span></td><td>fighter</td><td>stubborn, cautious</td></tr>
+    </tbody></table>
+  </section>
+
+  <section id="choices">
+    <h2>Choices — Triple-O + Say Yes <span class="count">8</span></h2>
+    <p class="small muted">Fused campaign via LLM-derived Triple-O branches (Obvious/Option/Odd, 1d6). <code>controlled+limited</code> trivial auto-resolves via Burning Wheel <em>Say Yes</em> (no dice, visible). Rolled choices tick clocks (odd = no tick). See <code>packages/fused/src/fused/choice.py:28</code>.</p>
+    <div class="grid4">
+      <div class="card"><div class="k">Total choices</div><div class="v">8</div></div>
+      <div class="card"><div class="k">Say Yes (trivial)</div><div class="v">0</div><div class="sub">no RNG</div></div>
+      <div class="card"><div class="k">Rolled</div><div class="v">8</div><div class="sub">1d6</div></div>
+      <div class="card"><div class="k">Odd (no tick)</div><div class="v">3</div></div>
+    </div>
+    
+    <table>
+      <thead><tr><th>Situation</th><th>Branch</th><th>Via</th><th>Pos/Eff</th><th>Ticks</th></tr></thead>
+      <tbody>
+      
+        <tr>
+          <td><strong>Scene scene-01-goblin-ambush: Survive the ambush on the road to Tan...</strong><br><span class="small muted">Elaria · scene-01-goblin-ambush</span></td>
+          <td><span class="pill obvious">obvious</span><br><span class="small">Elaria holds position and attacks the nearest foe</span></td>
+          <td><span class="pill rolled">rolled 6</span><br><span class="small">rolled</span></td>
+          <td><code>controlled/standard</code></td>
+          <td>2</td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-01-goblin-ambush: Survive the ambush on the road to Tan...</strong><br><span class="small muted">Briana · scene-01-goblin-ambush</span></td>
+          <td><span class="pill odd">odd</span><br><span class="small">Briana tries an impulsive stunt</span></td>
+          <td><span class="pill rolled">rolled 1</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td><span class="muted">0 (odd)</span></td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-01-goblin-ambush: Survive the ambush on the road to Tan...</strong><br><span class="small muted">Thalion · scene-01-goblin-ambush</span></td>
+          <td><span class="pill odd">odd</span><br><span class="small">Thalion tries an impulsive stunt</span></td>
+          <td><span class="pill rolled">rolled 1</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td><span class="muted">0 (odd)</span></td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-01-goblin-ambush: Survive the ambush on the road to Tan...</strong><br><span class="small muted">Mira · scene-01-goblin-ambush</span></td>
+          <td><span class="pill obvious">obvious</span><br><span class="small">Mira holds position and attacks the nearest foe</span></td>
+          <td><span class="pill rolled">rolled 6</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td>2</td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — wha...</strong><br><span class="small muted">Elaria · scene-02-kennel</span></td>
+          <td><span class="pill odd">odd</span><br><span class="small">Elaria tries an impulsive stunt</span></td>
+          <td><span class="pill rolled">rolled 1</span><br><span class="small">rolled</span></td>
+          <td><code>controlled/standard</code></td>
+          <td><span class="muted">0 (odd)</span></td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — wha...</strong><br><span class="small muted">Briana · scene-02-kennel</span></td>
+          <td><span class="pill option">option</span><br><span class="small">Briana repositions for flanking</span></td>
+          <td><span class="pill rolled">rolled 2</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td>2</td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — wha...</strong><br><span class="small muted">Thalion · scene-02-kennel</span></td>
+          <td><span class="pill option">option</span><br><span class="small">Thalion repositions for flanking</span></td>
+          <td><span class="pill rolled">rolled 2</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td>2</td>
+        </tr>
+      
+        <tr>
+          <td><strong>Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — wha...</strong><br><span class="small muted">Mira · scene-02-kennel</span></td>
+          <td><span class="pill obvious">obvious</span><br><span class="small">Mira holds position and attacks the nearest foe</span></td>
+          <td><span class="pill rolled">rolled 5</span><br><span class="small">rolled</span></td>
+          <td><code>risky/standard</code></td>
+          <td>2</td>
+        </tr>
+      
+      </tbody>
+    </table>
+    
+    <details><summary>Choices — raw payloads</summary>
+      <pre class="small json">{
+  "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+  "scene_id": "scene-01-goblin-ambush",
+  "actor": "Elaria",
+  "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?",
+  "obvious": "Elaria holds position and attacks the nearest foe",
+  "option": "Elaria repositions for flanking",
+  "odd": "Elaria tries an impulsive stunt",
+  "traits": [
+    "Suspicious of authority",
+    "Always ready to fight"
+  ],
+  "position": "controlled",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 6,
+  "rolls": [
+    6
+  ],
+  "category": "obvious",
+  "choice_text": "Elaria holds position and attacks the nearest foe",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 6,
+    "rolls": [
+      6
+    ],
+    "category": "obvious",
+    "position": "controlled",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+  "scene_id": "scene-01-goblin-ambush",
+  "actor": "Briana",
+  "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?",
+  "obvious": "Briana holds position and attacks the nearest foe",
+  "option": "Briana repositions for flanking",
+  "odd": "Briana tries an impulsive stunt",
+  "traits": [
+    "Inquisitive / Curious"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 1,
+  "rolls": [
+    1
+  ],
+  "category": "odd",
+  "choice_text": "Briana tries an impulsive stunt",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 1,
+    "rolls": [
+      1
+    ],
+    "category": "odd",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+  "scene_id": "scene-01-goblin-ambush",
+  "actor": "Thalion",
+  "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?",
+  "obvious": "Thalion holds position and attacks the nearest foe",
+  "option": "Thalion repositions for flanking",
+  "odd": "Thalion tries an impulsive stunt",
+  "traits": [
+    "Helpful / Cooperative"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 1,
+  "rolls": [
+    1
+  ],
+  "category": "odd",
+  "choice_text": "Thalion tries an impulsive stunt",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 1,
+    "rolls": [
+      1
+    ],
+    "category": "odd",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+  "scene_id": "scene-01-goblin-ambush",
+  "actor": "Mira",
+  "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?",
+  "obvious": "Mira holds position and attacks the nearest foe",
+  "option": "Mira repositions for flanking",
+  "odd": "Mira tries an impulsive stunt",
+  "traits": [
+    "Cautious / Defensive"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 6,
+  "rolls": [
+    6
+  ],
+  "category": "obvious",
+  "choice_text": "Mira holds position and attacks the nearest foe",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 6,
+    "rolls": [
+      6
+    ],
+    "category": "obvious",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-02-kennel-choice-0004-f7daf436",
+  "scene_id": "scene-02-kennel",
+  "actor": "Elaria",
+  "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do?",
+  "obvious": "Elaria holds position and attacks the nearest foe",
+  "option": "Elaria repositions for flanking",
+  "odd": "Elaria tries an impulsive stunt",
+  "traits": [
+    "Suspicious of authority",
+    "Always ready to fight"
+  ],
+  "position": "controlled",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 1,
+  "rolls": [
+    1
+  ],
+  "category": "odd",
+  "choice_text": "Elaria tries an impulsive stunt",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 1,
+    "rolls": [
+      1
+    ],
+    "category": "odd",
+    "position": "controlled",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-02-kennel-choice-0005-3f959789",
+  "scene_id": "scene-02-kennel",
+  "actor": "Briana",
+  "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do?",
+  "obvious": "Briana holds position and attacks the nearest foe",
+  "option": "Briana repositions for flanking",
+  "odd": "Briana tries an impulsive stunt",
+  "traits": [
+    "Inquisitive / Curious"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 2,
+  "rolls": [
+    2
+  ],
+  "category": "option",
+  "choice_text": "Briana repositions for flanking",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 2,
+    "rolls": [
+      2
+    ],
+    "category": "option",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-02-kennel-choice-0006-fcba3ec1",
+  "scene_id": "scene-02-kennel",
+  "actor": "Thalion",
+  "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do?",
+  "obvious": "Thalion holds position and attacks the nearest foe",
+  "option": "Thalion repositions for flanking",
+  "odd": "Thalion tries an impulsive stunt",
+  "traits": [
+    "Helpful / Cooperative"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 2,
+  "rolls": [
+    2
+  ],
+  "category": "option",
+  "choice_text": "Thalion repositions for flanking",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 2,
+    "rolls": [
+      2
+    ],
+    "category": "option",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre><pre class="small json">{
+  "choice_id": "scene-02-kennel-choice-0007-0cb6b850",
+  "scene_id": "scene-02-kennel",
+  "actor": "Mira",
+  "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do?",
+  "obvious": "Mira holds position and attacks the nearest foe",
+  "option": "Mira repositions for flanking",
+  "odd": "Mira tries an impulsive stunt",
+  "traits": [
+    "Cautious / Defensive"
+  ],
+  "position": "risky",
+  "effect": "standard",
+  "trivial": false,
+  "trivial_reason": "",
+  "roll": 5,
+  "rolls": [
+    5
+  ],
+  "category": "obvious",
+  "choice_text": "Mira holds position and attacks the nearest foe",
+  "resolved_via": "rolled",
+  "ticks": 2,
+  "payload": {
+    "roll": 5,
+    "rolls": [
+      5
+    ],
+    "category": "obvious",
+    "position": "risky",
+    "effect": "standard",
+    "advantage": null
+  }
+}</pre>
+    </details>
+  </section>
+
+  <section id="timeline">
+    <h2>Timeline <span class="count">35</span></h2>
+    <div class="controls">
+      <select id="filter-type"><option value="">All types</option><option value="fused.campaign.rest">fused.campaign.rest</option><option value="fused.choice.proposed">fused.choice.proposed</option><option value="fused.choice.resolved">fused.choice.resolved</option><option value="fused.effect.recorded">fused.effect.recorded</option><option value="fused.scene.created">fused.scene.created</option><option value="fused.snapshot.taken">fused.snapshot.taken</option><option value="fused.trait.registered">fused.trait.registered</option></select>
+      <select id="filter-kind"><option value="">All kinds</option><option value="choice">choice</option><option value="clock-tick">clock-tick</option><option value="encounter-start">encounter-start</option><option value="long-rest">long-rest</option><option value="scene-create">scene-create</option><option value="scene-end">scene-end</option><option value="snapshot">snapshot</option><option value="trait-register">trait-register</option></select>
+      <input id="filter-text" placeholder="filter text (actor, summary, scene)">
+      <button onclick="clearFilters()" class="ghost">Clear</button>
+    </div>
+    <div class="timeline" id="timeline-list">
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Elaria" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Elaria — Registered traits for Elaria: ranger, tracker, elf, Suspicious of authority, Always ready to fight</div>
+        <div class="small muted">id <code>scene-00-0000-a127844a</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0000-a127844a",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.827509Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Elaria: ranger, tracker, elf, Suspicious of authority, Always ready to fight",
+    "payload": {
+      "traits": [
+        "Suspicious of authority",
+        "Always ready to fight"
+      ],
+      "archetype": "ranger",
+      "ancestry": "elf"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.827509Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Briana" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Briana — Registered traits for Briana: wizard, sage, human, Inquisitive / Curious</div>
+        <div class="small muted">id <code>scene-00-0001-b99d9622</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0001-b99d9622",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.828678Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Briana: wizard, sage, human, Inquisitive / Curious",
+    "payload": {
+      "traits": [
+        "Inquisitive / Curious"
+      ],
+      "archetype": "wizard",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.828678Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Thalion" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Thalion — Registered traits for Thalion: fighter, soldier, human, Helpful / Cooperative</div>
+        <div class="small muted">id <code>scene-00-0002-1b419045</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0002-1b419045",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.828948Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Thalion: fighter, soldier, human, Helpful / Cooperative",
+    "payload": {
+      "traits": [
+        "Helpful / Cooperative"
+      ],
+      "archetype": "fighter",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.828948Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Mira" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Mira — Registered traits for Mira: cleric, cleric, dwarf, Cautious / Defensive</div>
+        <div class="small muted">id <code>scene-00-0003-944b998b</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0003-944b998b",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.829207Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Mira: cleric, cleric, dwarf, Cautious / Defensive",
+    "payload": {
+      "traits": [
+        "Cautious / Defensive"
+      ],
+      "archetype": "cleric",
+      "ancestry": "dwarf"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.829207Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.scene.created" data-kind="scene-create" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">scene.created</span><span class="pill">scene-create</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0004-ea7255c0</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0004-ea7255c0",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.scene.created",
+  "time": "2026-09-09T22:30:22.829569Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "scene-create",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood",
+    "payload": {
+      "scene": {
+        "scene_id": "scene-01-goblin-ambush",
+        "title": "Goblin Ambush",
+        "objective": "Survive the ambush on the road to Tanglewood",
+        "location": "Wilderlands",
+        "patron": "Lord Garrington",
+        "threat": "Goblin raiders",
+        "status": "planned",
+        "beats": [
+          "Patrol sets out",
+          "Ambushed on road",
+          "Hold or flee"
+        ],
+        "cast": [
+          "Elaria",
+          "Briana",
+          "Thalion",
+          "Mira"
+        ],
+        "clocks": [
+          {
+            "name": "scene-01-goblin-ambush-progress",
+            "segments": 6,
+            "ticks": 0,
+            "kind": "obstacle"
+          }
+        ],
+        "effect_ids": [],
+        "seed": 43
+      },
+      "location": "Wilderlands",
+      "threat": "Goblin raiders"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.829569Z"
+  },
+  "tags": [
+    "effect",
+    "scene-create",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="encounter-start" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">encounter-start</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood (3 foes, outdoor)</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0005-0a165682</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0005-0a165682",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.830148Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "encounter-start",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood (3 foes, outdoor)",
+    "payload": {
+      "monsters": [
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "map": "outdoor"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.830148Z"
+  },
+  "tags": [
+    "effect",
+    "encounter-start",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Elaria" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Elaria — Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do? | ...</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0006-ea302b7d</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0006-ea302b7d",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.830952Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do? | O:Elaria holds position and attacks the nearest foe / Opt:Elaria repositions for flanking / Odd:Elaria tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Elaria",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt"
+      },
+      "position": "controlled",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.830952Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Elaria" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Elaria — Choice obvious (rolled): Elaria holds position and attacks the nearest foe</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0007-f11af502</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0007-f11af502",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.831364Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice obvious (rolled): Elaria holds position and attacks the nearest foe",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Elaria",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 6,
+        "rolls": [
+          6
+        ],
+        "category": "obvious",
+        "choice_text": "Elaria holds position and attacks the nearest foe",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 6,
+          "rolls": [
+            6
+          ],
+          "category": "obvious",
+          "position": "controlled",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "obvious",
+      "roll": 6,
+      "rolls": [
+        6
+      ],
+      "choice_text": "Elaria holds position and attacks the nearest foe",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.831364Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="clock-tick" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">clock-tick</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Clock scene-01-goblin-ambush-progress 0→2/6</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0008-3ff51966</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0008-3ff51966",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.831610Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "clock-tick",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Clock scene-01-goblin-ambush-progress 0→2/6",
+    "payload": {
+      "name": "scene-01-goblin-ambush-progress",
+      "ticks": 2,
+      "before": 0,
+      "after": 2,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.831610Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Briana" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Briana — Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do? | ...</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0009-11d36a2a</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0009-11d36a2a",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.832023Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do? | O:Briana holds position and attacks the nearest foe / Opt:Briana repositions for flanking / Odd:Briana tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Briana",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832023Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Briana" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Briana — Choice odd (rolled): Briana tries an impulsive stunt</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0010-efd300da</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0010-efd300da",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.832398Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice odd (rolled): Briana tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Briana",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 1,
+        "rolls": [
+          1
+        ],
+        "category": "odd",
+        "choice_text": "Briana tries an impulsive stunt",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 1,
+          "rolls": [
+            1
+          ],
+          "category": "odd",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "odd",
+      "roll": 1,
+      "rolls": [
+        1
+      ],
+      "choice_text": "Briana tries an impulsive stunt",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832398Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Thalion" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Thalion — Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do? |...</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0011-f30192d8</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0011-f30192d8",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.832793Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do? | O:Thalion holds position and attacks the nearest foe / Opt:Thalion repositions for flanking / Odd:Thalion tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Thalion",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832793Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Thalion" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Thalion — Choice odd (rolled): Thalion tries an impulsive stunt</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0012-68699800</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0012-68699800",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.833080Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice odd (rolled): Thalion tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Thalion",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 1,
+        "rolls": [
+          1
+        ],
+        "category": "odd",
+        "choice_text": "Thalion tries an impulsive stunt",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 1,
+          "rolls": [
+            1
+          ],
+          "category": "odd",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "odd",
+      "roll": 1,
+      "rolls": [
+        1
+      ],
+      "choice_text": "Thalion tries an impulsive stunt",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833080Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Mira" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Mira — Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do? | O:...</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0013-caf48a9f</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0013-caf48a9f",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.833413Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do? | O:Mira holds position and attacks the nearest foe / Opt:Mira repositions for flanking / Odd:Mira tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Mira",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833413Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Mira" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Mira — Choice obvious (rolled): Mira holds position and attacks the nearest foe</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0014-d3a09ac7</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0014-d3a09ac7",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.833702Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice obvious (rolled): Mira holds position and attacks the nearest foe",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Mira",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 6,
+        "rolls": [
+          6
+        ],
+        "category": "obvious",
+        "choice_text": "Mira holds position and attacks the nearest foe",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 6,
+          "rolls": [
+            6
+          ],
+          "category": "obvious",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "obvious",
+      "roll": 6,
+      "rolls": [
+        6
+      ],
+      "choice_text": "Mira holds position and attacks the nearest foe",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833702Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="clock-tick" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">clock-tick</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Clock scene-01-goblin-ambush-progress 2→4/6</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0015-a4063a4a</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0015-a4063a4a",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.834009Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "clock-tick",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Clock scene-01-goblin-ambush-progress 2→4/6",
+    "payload": {
+      "name": "scene-01-goblin-ambush-progress",
+      "ticks": 2,
+      "before": 2,
+      "after": 4,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.834009Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="scene-end" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">scene-end</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-01-goblin-ambush ended after 1 rounds — players {'Elaria': {'hp': 11, 'max': 11, 'alive': True}, 'Briana'...</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0016-17c659f2</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0016-17c659f2",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.834984Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "scene-end",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush ended after 1 rounds — players {'Elaria': {'hp': 11, 'max': 11, 'alive': True}, 'Briana': {'hp': 2, 'max': 6, 'alive': True}, 'Thalion': {'hp': 14, 'max': 14, 'alive': True}, 'Mira': {'hp': 11, 'max': 11, 'alive': True}}",
+    "payload": {
+      "result": {
+        "Elaria": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        },
+        "Briana": {
+          "hp": 2,
+          "max": 6,
+          "alive": true
+        },
+        "Thalion": {
+          "hp": 14,
+          "max": 14,
+          "alive": true
+        },
+        "Mira": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        }
+      }
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.834984Z"
+  },
+  "tags": [
+    "effect",
+    "scene-end",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.campaign.rest" data-kind="long-rest" data-subject="GM" data-scene="scene-01-goblin-ambush">
+        <div class="tl-meta"><span class="pill">campaign.rest</span><span class="pill">long-rest</span><span>round 1</span><span>scene-01-goblin-ambush</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Party takes a night's rest; HP/slots restored</div>
+        <div class="small muted">id <code>scene-01-goblin-ambush-0017-67560980</code> · <code>fused://campaign/scene-01-goblin-ambush</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0017-67560980",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.campaign.rest",
+  "time": "2026-09-09T22:30:22.835971Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "long-rest",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Party takes a night's rest; HP/slots restored",
+    "payload": {}
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.835971Z"
+  },
+  "tags": [
+    "effect",
+    "long-rest",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.scene.created" data-kind="scene-create" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">scene.created</span><span class="pill">scene-create</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre</div>
+        <div class="small muted">id <code>scene-02-kennel-0018-6d485d15</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0018-6d485d15",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.scene.created",
+  "time": "2026-09-09T22:30:22.836386Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "scene-create",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre",
+    "payload": {
+      "scene": {
+        "scene_id": "scene-02-kennel",
+        "title": "The Kennel",
+        "objective": "Clear the kennels and recover Wyldfyre",
+        "location": "Undercity",
+        "patron": "Wizard Nimdronde",
+        "threat": "Cultists",
+        "status": "planned",
+        "beats": [
+          "Enter kennels",
+          "Rescue hostage",
+          "Escape with Wyldfyre"
+        ],
+        "cast": [
+          "Elaria",
+          "Briana",
+          "Thalion",
+          "Mira"
+        ],
+        "clocks": [
+          {
+            "name": "scene-02-kennel-progress",
+            "segments": 6,
+            "ticks": 0,
+            "kind": "obstacle"
+          }
+        ],
+        "effect_ids": [],
+        "seed": 44
+      },
+      "location": "Undercity",
+      "threat": "Cultists"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.836386Z"
+  },
+  "tags": [
+    "effect",
+    "scene-create",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="encounter-start" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">encounter-start</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre (3 foes, indoor)</div>
+        <div class="small muted">id <code>scene-02-kennel-0019-fdbfcafb</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0019-fdbfcafb",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.836840Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "encounter-start",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre (3 foes, indoor)",
+    "payload": {
+      "monsters": [
+        "wolf",
+        "wolf",
+        "goblin"
+      ],
+      "map": "indoor"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.836840Z"
+  },
+  "tags": [
+    "effect",
+    "encounter-start",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Elaria" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Elaria — Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do? | O:Elaria hold...</div>
+        <div class="small muted">id <code>scene-02-kennel-0020-ffa87f57</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0020-ffa87f57",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.837550Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do? | O:Elaria holds position and attacks the nearest foe / Opt:Elaria repositions for flanking / Odd:Elaria tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0004-f7daf436",
+        "scene_id": "scene-02-kennel",
+        "actor": "Elaria",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt"
+      },
+      "position": "controlled",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.837550Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Elaria" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Elaria — Choice odd (rolled): Elaria tries an impulsive stunt</div>
+        <div class="small muted">id <code>scene-02-kennel-0021-5d3a4aa6</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0021-5d3a4aa6",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.837865Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice odd (rolled): Elaria tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0004-f7daf436",
+        "scene_id": "scene-02-kennel",
+        "actor": "Elaria",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 1,
+        "rolls": [
+          1
+        ],
+        "category": "odd",
+        "choice_text": "Elaria tries an impulsive stunt",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 1,
+          "rolls": [
+            1
+          ],
+          "category": "odd",
+          "position": "controlled",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-02-kennel-choice-0004-f7daf436",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "odd",
+      "roll": 1,
+      "rolls": [
+        1
+      ],
+      "choice_text": "Elaria tries an impulsive stunt",
+      "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Elaria do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.837865Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Briana" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Briana — Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do? | O:Briana hold...</div>
+        <div class="small muted">id <code>scene-02-kennel-0022-738448a0</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0022-738448a0",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.838212Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do? | O:Briana holds position and attacks the nearest foe / Opt:Briana repositions for flanking / Odd:Briana tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0005-3f959789",
+        "scene_id": "scene-02-kennel",
+        "actor": "Briana",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.838212Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Briana" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Briana — Choice option (rolled): Briana repositions for flanking</div>
+        <div class="small muted">id <code>scene-02-kennel-0023-d47d5835</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0023-d47d5835",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.838475Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice option (rolled): Briana repositions for flanking",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0005-3f959789",
+        "scene_id": "scene-02-kennel",
+        "actor": "Briana",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 2,
+        "rolls": [
+          2
+        ],
+        "category": "option",
+        "choice_text": "Briana repositions for flanking",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 2,
+          "rolls": [
+            2
+          ],
+          "category": "option",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-02-kennel-choice-0005-3f959789",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "option",
+      "roll": 2,
+      "rolls": [
+        2
+      ],
+      "choice_text": "Briana repositions for flanking",
+      "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Briana do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.838475Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="clock-tick" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">clock-tick</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Clock scene-02-kennel-progress 0→2/6</div>
+        <div class="small muted">id <code>scene-02-kennel-0024-84e37c5b</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0024-84e37c5b",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.838737Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "clock-tick",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Clock scene-02-kennel-progress 0→2/6",
+    "payload": {
+      "name": "scene-02-kennel-progress",
+      "ticks": 2,
+      "before": 0,
+      "after": 2,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.838737Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Thalion" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Thalion — Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do? | O:Thalion ho...</div>
+        <div class="small muted">id <code>scene-02-kennel-0025-47148d7b</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0025-47148d7b",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.839080Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do? | O:Thalion holds position and attacks the nearest foe / Opt:Thalion repositions for flanking / Odd:Thalion tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0006-fcba3ec1",
+        "scene_id": "scene-02-kennel",
+        "actor": "Thalion",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.839080Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Thalion" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Thalion — Choice option (rolled): Thalion repositions for flanking</div>
+        <div class="small muted">id <code>scene-02-kennel-0026-d83659fa</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0026-d83659fa",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.839365Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice option (rolled): Thalion repositions for flanking",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0006-fcba3ec1",
+        "scene_id": "scene-02-kennel",
+        "actor": "Thalion",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 2,
+        "rolls": [
+          2
+        ],
+        "category": "option",
+        "choice_text": "Thalion repositions for flanking",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 2,
+          "rolls": [
+            2
+          ],
+          "category": "option",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-02-kennel-choice-0006-fcba3ec1",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "option",
+      "roll": 2,
+      "rolls": [
+        2
+      ],
+      "choice_text": "Thalion repositions for flanking",
+      "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Thalion do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.839365Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="clock-tick" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">clock-tick</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Clock scene-02-kennel-progress 2→4/6</div>
+        <div class="small muted">id <code>scene-02-kennel-0027-cbc4fc92</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0027-cbc4fc92",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.839589Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "clock-tick",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Clock scene-02-kennel-progress 2→4/6",
+    "payload": {
+      "name": "scene-02-kennel-progress",
+      "ticks": 2,
+      "before": 2,
+      "after": 4,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.839589Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.proposed" data-kind="choice" data-subject="Mira" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.proposed</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Mira — Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do? | O:Mira holds po...</div>
+        <div class="small muted">id <code>scene-02-kennel-0028-13b097b8</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0028-13b097b8",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.839920Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do? | O:Mira holds position and attacks the nearest foe / Opt:Mira repositions for flanking / Odd:Mira tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0007-0cb6b850",
+        "scene_id": "scene-02-kennel",
+        "actor": "Mira",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.839920Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item choice" data-type="fused.choice.resolved" data-kind="choice" data-subject="Mira" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">choice.resolved</span><span class="pill">choice</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">Mira — Choice obvious (rolled): Mira holds position and attacks the nearest foe</div>
+        <div class="small muted">id <code>scene-02-kennel-0029-61432d4a</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0029-61432d4a",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.840172Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "choice",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Choice obvious (rolled): Mira holds position and attacks the nearest foe",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-02-kennel-choice-0007-0cb6b850",
+        "scene_id": "scene-02-kennel",
+        "actor": "Mira",
+        "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 5,
+        "rolls": [
+          5
+        ],
+        "category": "obvious",
+        "choice_text": "Mira holds position and attacks the nearest foe",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 5,
+          "rolls": [
+            5
+          ],
+          "category": "obvious",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-02-kennel-choice-0007-0cb6b850",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "obvious",
+      "roll": 5,
+      "rolls": [
+        5
+      ],
+      "choice_text": "Mira holds position and attacks the nearest foe",
+      "situation": "Scene scene-02-kennel: Clear the kennels and recover Wyldfyre — what does Mira do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.840172Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="clock-tick" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">clock-tick</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Clock scene-02-kennel-progress 4→6/6</div>
+        <div class="small muted">id <code>scene-02-kennel-0030-f9186bb9</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0030-f9186bb9",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.840383Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "clock-tick",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Clock scene-02-kennel-progress 4→6/6",
+    "payload": {
+      "name": "scene-02-kennel-progress",
+      "ticks": 2,
+      "before": 4,
+      "after": 6,
+      "completed": true
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.840383Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.effect.recorded" data-kind="scene-end" data-subject="GM" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">effect.recorded</span><span class="pill">scene-end</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">GM — Scene scene-02-kennel ended after 1 rounds — players {'Elaria': {'hp': 11, 'max': 11, 'alive': True}, 'Briana': {'hp'...</div>
+        <div class="small muted">id <code>scene-02-kennel-0031-c89717c4</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0031-c89717c4",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.840916Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "scene-end",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Scene scene-02-kennel ended after 1 rounds — players {'Elaria': {'hp': 11, 'max': 11, 'alive': True}, 'Briana': {'hp': 5, 'max': 6, 'alive': True}, 'Thalion': {'hp': 14, 'max': 14, 'alive': True}, 'Mira': {'hp': 11, 'max': 11, 'alive': True}}",
+    "payload": {
+      "result": {
+        "Elaria": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        },
+        "Briana": {
+          "hp": 5,
+          "max": 6,
+          "alive": true
+        },
+        "Thalion": {
+          "hp": 14,
+          "max": 14,
+          "alive": true
+        },
+        "Mira": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        }
+      }
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.840916Z"
+  },
+  "tags": [
+    "effect",
+    "scene-end",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.snapshot.taken" data-kind="snapshot" data-subject="system" data-scene="scene-02-kennel">
+        <div class="tl-meta"><span class="pill">snapshot.taken</span><span class="pill">snapshot</span><span>round 1</span><span>scene-02-kennel</span><span>2026-09-09T22:30...</span></div>
+        <div class="hl">system — Snapshot at seq 32</div>
+        <div class="small muted">id <code>snapshot-00032-bbefda30</code> · <code>fused://campaign/scene-02-kennel</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "snapshot-00032-bbefda30",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.snapshot.taken",
+  "time": "2026-09-09T22:30:22.843870Z",
+  "subject": "system",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "snapshot"
+  },
+  "data": {
+    "summary": "Snapshot at seq 32",
+    "payload": {},
+    "snapshot_hash": "bbefda303bf85fd0230eb8f9f4603ae83123c8b718ac477bc5eb4d80e9ef8079",
+    "seq": 32
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.843870Z"
+  },
+  "tags": [
+    "effect",
+    "snapshot",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": "snapshots/00032.json"
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Elaria" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:42...</span></div>
+        <div class="hl">Elaria — Registered traits for Elaria: ranger, adventurer, human, brave, keen eye</div>
+        <div class="small muted">id <code>scene-00-0000-a127844a</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0000-a127844a",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:42:32.693595Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Elaria: ranger, adventurer, human, brave, keen eye",
+    "payload": {
+      "traits": [
+        "brave",
+        "keen eye"
+      ],
+      "archetype": "ranger",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:42:32.693595Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+      <div class="tl-item " data-type="fused.trait.registered" data-kind="trait-register" data-subject="Borin" data-scene="scene-00">
+        <div class="tl-meta"><span class="pill">trait.registered</span><span class="pill">trait-register</span><span>round 1</span><span>scene-00</span><span>2026-09-09T22:42...</span></div>
+        <div class="hl">Borin — Registered traits for Borin: fighter, adventurer, human, stubborn, cautious</div>
+        <div class="small muted">id <code>scene-00-0001-3028951e</code> · <code>fused://campaign/scene-00</code></div>
+        <details><summary>payload</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0001-3028951e",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:42:32.694350Z",
+  "subject": "Borin",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Borin: fighter, adventurer, human, stubborn, cautious",
+    "payload": {
+      "traits": [
+        "stubborn",
+        "cautious"
+      ],
+      "archetype": "fighter",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:42:32.694350Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}</pre></details>
+      </div>
+    
+    </div>
+    <p class="small muted">Shown 35 events (chronological). Use filters above or <code>jq</code>: <code>jq -c 'select(.type=="fused.choice.say_yes")' knowledge/fused-demo/events.jsonl</code></p>
+  </section>
+
+  <section id="knowledge">
+    <h2>Knowledge — projections & cheap queries</h2>
+    <div class="grid2">
+      <div>
+        <h3>Wounds (derived view)</h3>
+        <div class="empty small">No wounds in payloads</div>
+        <p class="small muted">View: <code>wounds</code> in <code>knowledge/fused-demo/projections/campaign.db</code></p>
+      </div>
+      <div>
+        <h3>Clocks</h3>
+        
+        <table><thead><tr><th>Name</th><th>Ticks</th><th>Kind</th></tr></thead><tbody>
+        <tr><td><code>scene-01-goblin-ambush-progress</code></td><td>4/6 </td><td>obstacle</td></tr><tr><td><code>scene-02-kennel-progress</code></td><td>6/6 ✓</td><td>obstacle</td></tr>
+        </tbody></table>
+        
+        <h3>Manifest</h3>
+        <pre class="small json">{
+  "head_seq": 2,
+  "head_id": "scene-00-0001-3028951e",
+  "snapshot_ref": null,
+  "events_sha256": "7f4b1a250dff45d7cbdabcb3966e6a3eb2980bfb5c5115125ea87408dbe17cfd",
+  "generated_at": "2026-09-09T22:42:32.694508Z"
+}</pre>
+      </div>
+    </div>
+    <h3>Cheap queries (no LLM)</h3>
+    <pre>jq -c 'select(.type=="fused.choice.say_yes")' knowledge/fused-demo/events.jsonl
+jq -c 'select(.type | startswith("fused.choice."))' knowledge/fused-demo/events.jsonl
+sqlite3 knowledge/fused-demo/projections/campaign.db "SELECT subject, kind, summary FROM events ORDER BY seq DESC LIMIT 5"
+duckdb -c "SELECT type, count(*) FROM read_json('knowledge/fused-demo/events.jsonl') GROUP BY type"</pre>
+  </section>
+
+  <section id="raw">
+    <h2>Raw JSONL</h2>
+    <p class="small muted">Canonical log: one CloudEvents JSON per line. Copy <code>events.jsonl</code> for offline analysis.</p>
+    <details><summary>Show first 20 lines (pretty)</summary><pre class="json">{
+  "specversion": "1.0",
+  "id": "scene-00-0000-a127844a",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.827509Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Elaria: ranger, tracker, elf, Suspicious of authority, Always ready to fight",
+    "payload": {
+      "traits": [
+        "Suspicious of authority",
+        "Always ready to fight"
+      ],
+      "archetype": "ranger",
+      "ancestry": "elf"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.827509Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-00-0001-b99d9622",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.828678Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Briana: wizard, sage, human, Inquisitive / Curious",
+    "payload": {
+      "traits": [
+        "Inquisitive / Curious"
+      ],
+      "archetype": "wizard",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.828678Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-00-0002-1b419045",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.828948Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Thalion: fighter, soldier, human, Helpful / Cooperative",
+    "payload": {
+      "traits": [
+        "Helpful / Cooperative"
+      ],
+      "archetype": "fighter",
+      "ancestry": "human"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.828948Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-00-0003-944b998b",
+  "source": "fused://campaign/scene-00",
+  "type": "fused.trait.registered",
+  "time": "2026-09-09T22:30:22.829207Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-00",
+    "kind": "trait-register"
+  },
+  "data": {
+    "summary": "Registered traits for Mira: cleric, cleric, dwarf, Cautious / Defensive",
+    "payload": {
+      "traits": [
+        "Cautious / Defensive"
+      ],
+      "archetype": "cleric",
+      "ancestry": "dwarf"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.829207Z"
+  },
+  "tags": [
+    "effect",
+    "trait-register",
+    "scene-00"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0004-ea7255c0",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.scene.created",
+  "time": "2026-09-09T22:30:22.829569Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "scene-create",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood",
+    "payload": {
+      "scene": {
+        "scene_id": "scene-01-goblin-ambush",
+        "title": "Goblin Ambush",
+        "objective": "Survive the ambush on the road to Tanglewood",
+        "location": "Wilderlands",
+        "patron": "Lord Garrington",
+        "threat": "Goblin raiders",
+        "status": "planned",
+        "beats": [
+          "Patrol sets out",
+          "Ambushed on road",
+          "Hold or flee"
+        ],
+        "cast": [
+          "Elaria",
+          "Briana",
+          "Thalion",
+          "Mira"
+        ],
+        "clocks": [
+          {
+            "name": "scene-01-goblin-ambush-progress",
+            "segments": 6,
+            "ticks": 0,
+            "kind": "obstacle"
+          }
+        ],
+        "effect_ids": [],
+        "seed": 43
+      },
+      "location": "Wilderlands",
+      "threat": "Goblin raiders"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.829569Z"
+  },
+  "tags": [
+    "effect",
+    "scene-create",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0005-0a165682",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.830148Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "encounter-start",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush: Goblin Ambush — Survive the ambush on the road to Tanglewood (3 foes, outdoor)",
+    "payload": {
+      "monsters": [
+        "goblin",
+        "goblin",
+        "goblin"
+      ],
+      "map": "outdoor"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.830148Z"
+  },
+  "tags": [
+    "effect",
+    "encounter-start",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0006-ea302b7d",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.830952Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do? | O:Elaria holds position and attacks the nearest foe / Opt:Elaria repositions for flanking / Odd:Elaria tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Elaria",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt"
+      },
+      "position": "controlled",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.830952Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0007-f11af502",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.831364Z",
+  "subject": "Elaria",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice obvious (rolled): Elaria holds position and attacks the nearest foe",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Elaria",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?",
+        "obvious": "Elaria holds position and attacks the nearest foe",
+        "option": "Elaria repositions for flanking",
+        "odd": "Elaria tries an impulsive stunt",
+        "traits": [
+          "Suspicious of authority",
+          "Always ready to fight"
+        ],
+        "position": "controlled",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 6,
+        "rolls": [
+          6
+        ],
+        "category": "obvious",
+        "choice_text": "Elaria holds position and attacks the nearest foe",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 6,
+          "rolls": [
+            6
+          ],
+          "category": "obvious",
+          "position": "controlled",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0000-0061c017",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "obvious",
+      "roll": 6,
+      "rolls": [
+        6
+      ],
+      "choice_text": "Elaria holds position and attacks the nearest foe",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Elaria do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.831364Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0008-3ff51966",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.831610Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "clock-tick",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Clock scene-01-goblin-ambush-progress 0→2/6",
+    "payload": {
+      "name": "scene-01-goblin-ambush-progress",
+      "ticks": 2,
+      "before": 0,
+      "after": 2,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.831610Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0009-11d36a2a",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.832023Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do? | O:Briana holds position and attacks the nearest foe / Opt:Briana repositions for flanking / Odd:Briana tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Briana",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832023Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0010-efd300da",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.832398Z",
+  "subject": "Briana",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice odd (rolled): Briana tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Briana",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?",
+        "obvious": "Briana holds position and attacks the nearest foe",
+        "option": "Briana repositions for flanking",
+        "odd": "Briana tries an impulsive stunt",
+        "traits": [
+          "Inquisitive / Curious"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 1,
+        "rolls": [
+          1
+        ],
+        "category": "odd",
+        "choice_text": "Briana tries an impulsive stunt",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 1,
+          "rolls": [
+            1
+          ],
+          "category": "odd",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0001-e9f2e5aa",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "odd",
+      "roll": 1,
+      "rolls": [
+        1
+      ],
+      "choice_text": "Briana tries an impulsive stunt",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Briana do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832398Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0011-f30192d8",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.832793Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do? | O:Thalion holds position and attacks the nearest foe / Opt:Thalion repositions for flanking / Odd:Thalion tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Thalion",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.832793Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0012-68699800",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.833080Z",
+  "subject": "Thalion",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice odd (rolled): Thalion tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Thalion",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?",
+        "obvious": "Thalion holds position and attacks the nearest foe",
+        "option": "Thalion repositions for flanking",
+        "odd": "Thalion tries an impulsive stunt",
+        "traits": [
+          "Helpful / Cooperative"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 1,
+        "rolls": [
+          1
+        ],
+        "category": "odd",
+        "choice_text": "Thalion tries an impulsive stunt",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 1,
+          "rolls": [
+            1
+          ],
+          "category": "odd",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0002-567082ce",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "odd",
+      "roll": 1,
+      "rolls": [
+        1
+      ],
+      "choice_text": "Thalion tries an impulsive stunt",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Thalion do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833080Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0013-caf48a9f",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.proposed",
+  "time": "2026-09-09T22:30:22.833413Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice proposed: Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do? | O:Mira holds position and attacks the nearest foe / Opt:Mira repositions for flanking / Odd:Mira tries an impulsive stunt",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Mira",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": null,
+        "rolls": [],
+        "category": null,
+        "choice_text": null,
+        "resolved_via": "rolled",
+        "ticks": 0,
+        "payload": {}
+      },
+      "proposal": {
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt"
+      },
+      "position": "risky",
+      "effect": "standard"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833413Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0014-d3a09ac7",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.choice.resolved",
+  "time": "2026-09-09T22:30:22.833702Z",
+  "subject": "Mira",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "choice",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Choice obvious (rolled): Mira holds position and attacks the nearest foe",
+    "payload": {
+      "choice": {
+        "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+        "scene_id": "scene-01-goblin-ambush",
+        "actor": "Mira",
+        "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?",
+        "obvious": "Mira holds position and attacks the nearest foe",
+        "option": "Mira repositions for flanking",
+        "odd": "Mira tries an impulsive stunt",
+        "traits": [
+          "Cautious / Defensive"
+        ],
+        "position": "risky",
+        "effect": "standard",
+        "trivial": false,
+        "trivial_reason": "",
+        "roll": 6,
+        "rolls": [
+          6
+        ],
+        "category": "obvious",
+        "choice_text": "Mira holds position and attacks the nearest foe",
+        "resolved_via": "rolled",
+        "ticks": 2,
+        "payload": {
+          "roll": 6,
+          "rolls": [
+            6
+          ],
+          "category": "obvious",
+          "position": "risky",
+          "effect": "standard",
+          "advantage": null
+        }
+      },
+      "choice_id": "scene-01-goblin-ambush-choice-0003-b305466d",
+      "trivial": false,
+      "trivial_reason": "",
+      "resolved_via": "rolled",
+      "category": "obvious",
+      "roll": 6,
+      "rolls": [
+        6
+      ],
+      "choice_text": "Mira holds position and attacks the nearest foe",
+      "situation": "Scene scene-01-goblin-ambush: Survive the ambush on the road to Tanglewood — what does Mira do?"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.833702Z"
+  },
+  "tags": [
+    "effect",
+    "choice",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0015-a4063a4a",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.834009Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "clock-tick",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Clock scene-01-goblin-ambush-progress 2→4/6",
+    "payload": {
+      "name": "scene-01-goblin-ambush-progress",
+      "ticks": 2,
+      "before": 2,
+      "after": 4,
+      "completed": false
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.834009Z"
+  },
+  "tags": [
+    "effect",
+    "clock-tick",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0016-17c659f2",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.834984Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "scene-end",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Scene scene-01-goblin-ambush ended after 1 rounds — players {'Elaria': {'hp': 11, 'max': 11, 'alive': True}, 'Briana': {'hp': 2, 'max': 6, 'alive': True}, 'Thalion': {'hp': 14, 'max': 14, 'alive': True}, 'Mira': {'hp': 11, 'max': 11, 'alive': True}}",
+    "payload": {
+      "result": {
+        "Elaria": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        },
+        "Briana": {
+          "hp": 2,
+          "max": 6,
+          "alive": true
+        },
+        "Thalion": {
+          "hp": 14,
+          "max": 14,
+          "alive": true
+        },
+        "Mira": {
+          "hp": 11,
+          "max": 11,
+          "alive": true
+        }
+      }
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.834984Z"
+  },
+  "tags": [
+    "effect",
+    "scene-end",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-01-goblin-ambush-0017-67560980",
+  "source": "fused://campaign/scene-01-goblin-ambush",
+  "type": "fused.campaign.rest",
+  "time": "2026-09-09T22:30:22.835971Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-01-goblin-ambush",
+    "kind": "long-rest",
+    "scene_title": "Goblin Ambush"
+  },
+  "data": {
+    "summary": "Party takes a night's rest; HP/slots restored",
+    "payload": {}
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.835971Z"
+  },
+  "tags": [
+    "effect",
+    "long-rest",
+    "scene-01-goblin-ambush"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0018-6d485d15",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.scene.created",
+  "time": "2026-09-09T22:30:22.836386Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "scene-create",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre",
+    "payload": {
+      "scene": {
+        "scene_id": "scene-02-kennel",
+        "title": "The Kennel",
+        "objective": "Clear the kennels and recover Wyldfyre",
+        "location": "Undercity",
+        "patron": "Wizard Nimdronde",
+        "threat": "Cultists",
+        "status": "planned",
+        "beats": [
+          "Enter kennels",
+          "Rescue hostage",
+          "Escape with Wyldfyre"
+        ],
+        "cast": [
+          "Elaria",
+          "Briana",
+          "Thalion",
+          "Mira"
+        ],
+        "clocks": [
+          {
+            "name": "scene-02-kennel-progress",
+            "segments": 6,
+            "ticks": 0,
+            "kind": "obstacle"
+          }
+        ],
+        "effect_ids": [],
+        "seed": 44
+      },
+      "location": "Undercity",
+      "threat": "Cultists"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.836386Z"
+  },
+  "tags": [
+    "effect",
+    "scene-create",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}
+{
+  "specversion": "1.0",
+  "id": "scene-02-kennel-0019-fdbfcafb",
+  "source": "fused://campaign/scene-02-kennel",
+  "type": "fused.effect.recorded",
+  "time": "2026-09-09T22:30:22.836840Z",
+  "subject": "GM",
+  "fused": {
+    "seed": 42,
+    "round": 1,
+    "scene_id": "scene-02-kennel",
+    "kind": "encounter-start",
+    "scene_title": "The Kennel"
+  },
+  "data": {
+    "summary": "Scene scene-02-kennel: The Kennel — Clear the kennels and recover Wyldfyre (3 foes, indoor)",
+    "payload": {
+      "monsters": [
+        "wolf",
+        "wolf",
+        "goblin"
+      ],
+      "map": "indoor"
+    }
+  },
+  "generated": {
+    "by": "process:fused",
+    "at": "2026-09-09T22:30:22.836840Z"
+  },
+  "tags": [
+    "effect",
+    "encounter-start",
+    "scene-02-kennel"
+  ],
+  "snapshot_ref": null
+}
+</pre></details>
+    <p class="small">Full file: <code>knowledge/fused-demo/events.jsonl</code> · <code>wc -l knowledge/fused-demo/events.jsonl</code> = 35 · <code>7f4b1a250dff4...…</code></p>
+  </section>
+
+</div></main>
+<footer><div class="wrap">Fused Knowledge Viewer · Liquid 2.3.1 · <code>packages/fused/templates/knowledge.liquid</code> → <code>knowledge/fused-demo/index.html</code> · Single-file, no external deps. · <a href="https://github.com/NoRaincheck/dnd-tools">dnd-tools</a></div></footer>
+<script>
+function clearFilters(){document.getElementById('filter-type').value='';document.getElementById('filter-text').value='';document.getElementById('filter-kind').value='';apply()}
+function apply(){
+  const t=document.getElementById('filter-type').value;
+  const k=document.getElementById('filter-kind').value;
+  const q=document.getElementById('filter-text').value.toLowerCase();
+  document.querySelectorAll('.tl-item').forEach(el=>{
+    const okT=!t||el.dataset.type===t;
+    const okK=!k||el.dataset.kind===k;
+    const txt=el.innerText.toLowerCase();
+    const okQ=!q||txt.includes(q);
+    el.style.display=(okT&&okK&&okQ)?'':'none';
+  })
+}
+document.getElementById('filter-type').addEventListener('change',apply);
+document.getElementById('filter-kind').addEventListener('change',apply);
+document.getElementById('filter-text').addEventListener('input',apply);
+</script>
+</body>
+</html>

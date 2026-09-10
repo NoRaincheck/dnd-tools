@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ campaign.title }} — Fused Knowledge</title>
+<meta name="description" content="Fused campaign knowledge viewer — JSONL events, scenes, choices, projections">
+<style>
+  :root{--bg:#fcfcfa;--fg:#171717;--accent:#1d4ed8;--accent2:#7c3aed;--muted:#6b7280;--border:#e5e7eb;--code-bg:#f3f4f6;--callout:#eff6ff;--max:1080px;--radius:12px;--ok:#16a34a;--warn:#d97706}
+  *{box-sizing:border-box} html{scroll-behavior:smooth}
+  body{margin:0;font:14px/1.6 ui-sans,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--fg)}
+  header{border-bottom:3px solid var(--accent);background:linear-gradient(180deg,#fff,#f0f7ff)}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 18px}
+  header .wrap{padding:24px 18px 14px}
+  h1{margin:0 0 4px;font-size:1.55rem;letter-spacing:-.02em;color:var(--accent)}
+  .subtitle{margin:0;color:var(--muted);font-size:.9rem}
+  .chips{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  .chip{padding:3px 9px;border-radius:999px;background:#fff;border:1px solid var(--border);font-size:.75rem;color:var(--muted)}
+  .chip.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+  nav.toc{position:sticky;top:0;z-index:10;background:rgba(252,252,250,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--border)}
+  nav.toc .wrap{display:flex;gap:10px;overflow:auto;white-space:nowrap;padding:8px 18px}
+  nav.toc a{color:var(--muted);text-decoration:none;font-size:.84rem;padding:5px 10px;border-radius:999px}
+  nav.toc a:hover{background:var(--code-bg);color:var(--accent)}
+  main .wrap{padding:16px 18px 50px}
+  section{margin:18px 0 22px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  h2{margin:0 0 8px;font-size:1.15rem;color:var(--accent);border-bottom:2px solid var(--border);padding-bottom:6px;display:flex;gap:8px;align-items:center}
+  h2 .count{font-size:.75rem;background:var(--code-bg);border:1px solid var(--border);padding:2px 7px;border-radius:999px;color:var(--muted);font-weight:600}
+  h3{margin:14px 0 6px;font-size:.98rem;color:#222}
+  p{margin:6px 0}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:900px){.grid4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}}
+  @media(max-width:520px){.grid4{grid-template-columns:1fr}}
+  .card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff}
+  .card .k{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .card .v{font-size:1.35rem;font-weight:800;color:var(--accent)}
+  .card .sub{font-size:.78rem;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;margin:8px 0 10px;font-size:.84rem}
+  th{ text-align:left;background:#f9fafb;border-bottom:2px solid var(--border);padding:6px 7px;font-weight:700;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  td{padding:6px 7px;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:var(--code-bg);border:1px solid var(--border);padding:10px;border-radius:8px;overflow:auto;font-size:.8rem;line-height:1.45}
+  code{background:var(--code-bg);padding:1px 4px;border-radius:4px;font-size:.86em}
+  pre code{background:none;padding:0}
+  .pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--code-bg);border:1px solid var(--border);font-size:.72rem;color:var(--muted)}
+  .pill.say_yes{background:#dcfce7;border-color:#86efac;color:#166534}
+  .pill.rolled{background:#dbeafe;border-color:#93c5fd;color:#1e40af}
+  .pill.odd{background:#ffe4e6;border-color:#fda4af;color:#9f1239}
+  .pill.obvious{background:#fef9c3;border-color:#fde047;color:#854d0e}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
+  .controls select,.controls input{padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:.84rem}
+  .controls button{padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+  .controls button.ghost{background:#fff;color:var(--accent)}
+  .muted{color:var(--muted)} .small{font-size:.82rem}
+  .timeline{border-left:2px solid var(--border);margin-left:8px;padding-left:0}
+  .tl-item{position:relative;padding:8px 0 8px 16px;border-bottom:1px dashed var(--border)}
+  .tl-item::before{content:"";position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px var(--border)}
+  .tl-item.choice::before{background:var(--accent2)}
+  .tl-meta{font-size:.76rem;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+  .hl{font-weight:700}
+  details{border:1px solid var(--border);border-radius:8px;padding:8px 10px;background:#fcfcff;margin:8px 0}
+  details summary{cursor:pointer;font-weight:600;color:var(--accent);font-size:.86rem}
+  .json{white-space:pre-wrap;word-break:break-all}
+  footer{border-top:1px solid var(--border);color:var(--muted);font-size:.78rem;padding:14px 0}
+  .empty{padding:18px;text-align:center;color:var(--muted);background:var(--code-bg);border:1px dashed var(--border);border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="pill" style="margin-bottom:6px">Fused Knowledge · JSONL · CloudEvents · Liquid-rendered</div>
+    <h1>{{ campaign.title }}</h1>
+    <p class="subtitle">{{ campaign.subtitle }} — <code>{{ campaign.bundle }}</code> · seed <strong>{{ campaign.seed }}</strong> · {{ campaign.events_count }} events · {{ campaign.scenes_count }} scenes · rendered {{ render_date }}</p>
+    <div class="chips">
+      <span class="chip accent">seed {{ campaign.seed }}</span>
+      <span class="chip">{{ campaign.events_count }} events</span>
+      <span class="chip">{{ campaign.scenes_count }} scenes</span>
+      <span class="chip">{{ campaign.traits_count }} traits</span>
+      <span class="chip">{{ campaign.snapshots_count }} snapshots</span>
+      <span class="chip">Liquid {{ liquid_version }}</span>
+      {% if campaign.manifest_head %}<span class="chip">head {{ campaign.manifest_head }}</span>{% endif %}
+    </div>
+  </div>
+</header>
+<nav class="toc" aria-label="Table of contents">
+  <div class="wrap">
+    <a href="#overview">Overview</a>
+    <a href="#scenes">Scenes</a>
+    <a href="#traits">Traits</a>
+    <a href="#choices">Choices</a>
+    <a href="#timeline">Timeline</a>
+    <a href="#knowledge">Knowledge</a>
+    <a href="#raw">Raw JSONL</a>
+  </div>
+</nav>
+<main><div class="wrap">
+
+  <section id="overview">
+    <h2>Overview <span class="count">{{ campaign.events_count }} events</span></h2>
+    <div class="grid4">
+      <div class="card"><div class="k">Events</div><div class="v">{{ campaign.events_count }}</div><div class="sub">append-only JSONL, CloudEvents 1.0</div></div>
+      <div class="card"><div class="k">Scenes</div><div class="v">{{ campaign.scenes_count }}</div><div class="sub">narrative structure</div></div>
+      <div class="card"><div class="k">Traits</div><div class="v">{{ campaign.traits_count }}</div><div class="sub">separate store</div></div>
+      <div class="card"><div class="k">Snapshots</div><div class="v">{{ campaign.snapshots_count }}</div><div class="sub">+ manifest replay</div></div>
+    </div>
+    <div class="grid2">
+      <div>
+        <h3>By type</h3>
+        <table><thead><tr><th>Type</th><th>Count</th></tr></thead><tbody>
+        {% for row in stats.by_type %}<tr><td><code>{{ row.type }}</code></td><td>{{ row.count }}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+      <div>
+        <h3>By kind</h3>
+        <table><thead><tr><th>Kind</th><th>Count</th></tr></thead><tbody>
+        {% for row in stats.by_kind %}<tr><td><code>{{ row.kind }}</code></td><td>{{ row.count }}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+    <p class="small muted">Canonical log: <code>{{ campaign.events_path }}</code> · Manifest <code>{{ campaign.manifest_path }}</code> · DB <code>{{ campaign.db_path }}</code> (derived, idempotent).</p>
+    {% if campaign.validation_errors.size > 0 %}
+    <div style="background:#fef2f2;border:1px solid #fecaca;padding:8px;border-radius:8px">
+      <strong>Validation errors:</strong> {{ campaign.validation_errors.size }}
+      <ul>{% for e in campaign.validation_errors %}<li><code>{{ e }}</code></li>{% endfor %}</ul>
+    </div>
+    {% else %}
+    <p class="small" style="color:var(--ok)">✓ Log validates (CloudEvents 1.0, fused.* types).</p>
+    {% endif %}
+  </section>
+
+  <section id="scenes">
+    <h2>Scenes <span class="count">{{ scenes.size }}</span></h2>
+    {% if scenes.size == 0 %}<div class="empty">No scenes — run <code>fused demo --seed {{ campaign.seed }}</code></div>{% endif %}
+    <div class="grid2">
+    {% for scene in scenes %}
+      <div class="card">
+        <div class="k">{{ scene.scene_id }}</div>
+        <div style="font-weight:700">{{ scene.title }}</div>
+        <div class="small muted">{{ scene.objective }}</div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          <span class="pill">{{ scene.location }}</span>
+          <span class="pill">{{ scene.threat }}</span>
+          <span class="pill">beats {{ scene.beats.size }}</span>
+          <span class="pill">cast {{ scene.cast.size }}</span>
+        </div>
+        {% if scene.clocks.size > 0 %}
+        <div style="margin-top:8px">
+          <div class="k">Clocks</div>
+          {% for c in scene.clocks %}<div class="small"><code>{{ c.name }}</code> {{ c.ticks }}/{{ c.segments }} {{ c.kind }} {% if c.completed %}✓{% endif %}</div>{% endfor %}
+        </div>
+        {% endif %}
+        {% if scene.beats.size > 0 %}
+        <details><summary>Beats ({{ scene.beats.size }})</summary><ol class="small">{% for b in scene.beats %}<li>{{ b }}</li>{% endfor %}</ol></details>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+  </section>
+
+  <section id="traits">
+    <h2>Traits <span class="count">{{ traits.size }}</span></h2>
+    {% if traits.size == 0 %}<div class="empty">No traits registered</div>{% endif %}
+    <table>{% if traits.size > 0 %}<thead><tr><th>Name</th><th>Archetype</th><th>Traits</th></tr></thead><tbody>
+    {% for t in traits %}<tr><td><strong>{{ t.name }}</strong> <span class="muted">({{ t.ancestry }}, {{ t.background }})</span></td><td>{{ t.archetype }}</td><td>{{ t.traits | join: ", " }}</td></tr>{% endfor %}
+    </tbody>{% endif %}</table>
+  </section>
+
+  <section id="choices">
+    <h2>Choices — Triple-O + Say Yes <span class="count">{{ choices.size }}</span></h2>
+    <p class="small muted">Fused campaign via LLM-derived Triple-O branches (Obvious/Option/Odd, 1d6). <code>controlled+limited</code> trivial auto-resolves via Burning Wheel <em>Say Yes</em> (no dice, visible). Rolled choices tick clocks (odd = no tick). See <code>packages/fused/src/fused/choice.py:28</code>.</p>
+    <div class="grid4">
+      <div class="card"><div class="k">Total choices</div><div class="v">{{ choices.size }}</div></div>
+      <div class="card"><div class="k">Say Yes (trivial)</div><div class="v">{{ stats.choices_say_yes }}</div><div class="sub">no RNG</div></div>
+      <div class="card"><div class="k">Rolled</div><div class="v">{{ stats.choices_rolled }}</div><div class="sub">1d6</div></div>
+      <div class="card"><div class="k">Odd (no tick)</div><div class="v">{{ stats.choices_odd }}</div></div>
+    </div>
+    {% if choices.size == 0 %}<div class="empty">No choices — they appear after <code>propose_choice / resolve_choice</code></div>{% else %}
+    <table>
+      <thead><tr><th>Situation</th><th>Branch</th><th>Via</th><th>Pos/Eff</th><th>Ticks</th></tr></thead>
+      <tbody>
+      {% for c in choices %}
+        <tr>
+          <td><strong>{{ c.situation | truncate: 70 }}</strong><br><span class="small muted">{{ c.actor }} · {{ c.scene_id }}</span></td>
+          <td><span class="pill {{ c.category }}">{{ c.category }}</span><br><span class="small">{{ c.choice_text | truncate: 60 }}</span></td>
+          <td>{% if c.trivial %}<span class="pill say_yes">say_yes</span>{% else %}<span class="pill rolled">rolled {{ c.roll }}</span>{% endif %}<br><span class="small">{{ c.resolved_via }}</span></td>
+          <td><code>{{ c.position }}/{{ c.effect }}</code></td>
+          <td>{% if c.category == "odd" %}<span class="muted">0 (odd)</span>{% else %}{{ c.ticks }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    <details><summary>Choices — raw payloads</summary>
+      {% for c in choices %}<pre class="small json">{{ c.pretty }}</pre>{% endfor %}
+    </details>
+  </section>
+
+  <section id="timeline">
+    <h2>Timeline <span class="count">{{ events.size }}</span></h2>
+    <div class="controls">
+      <select id="filter-type"><option value="">All types</option>{% for t in filter_types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select>
+      <select id="filter-kind"><option value="">All kinds</option>{% for k in filter_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
+      <input id="filter-text" placeholder="filter text (actor, summary, scene)">
+      <button onclick="clearFilters()" class="ghost">Clear</button>
+    </div>
+    <div class="timeline" id="timeline-list">
+    {% for e in events %}
+      <div class="tl-item {% if e.type contains 'choice' %}choice{% endif %}" data-type="{{ e.type }}" data-kind="{{ e.fused.kind }}" data-subject="{{ e.subject }}" data-scene="{{ e.fused.scene_id }}">
+        <div class="tl-meta"><span class="pill">{{ e.type | replace: "fused.", "" }}</span><span class="pill">{{ e.fused.kind }}</span><span>round {{ e.fused.round }}</span><span>{{ e.fused.scene_id }}</span><span>{{ e.time | truncate: 19 }}</span></div>
+        <div class="hl">{{ e.subject }} — {{ e.data.summary | truncate: 120 }}</div>
+        <div class="small muted">id <code>{{ e.id }}</code> · <code>{{ e.source }}</code></div>
+        <details><summary>payload</summary><pre class="json">{{ e.pretty }}</pre></details>
+      </div>
+    {% endfor %}
+    </div>
+    <p class="small muted">Shown {{ events.size }} events (chronological). Use filters above or <code>jq</code>: <code>jq -c 'select(.type=="fused.choice.say_yes")' {{ campaign.events_path }}</code></p>
+  </section>
+
+  <section id="knowledge">
+    <h2>Knowledge — projections & cheap queries</h2>
+    <div class="grid2">
+      <div>
+        <h3>Wounds (derived view)</h3>
+        {% if wounds.size == 0 %}<div class="empty small">No wounds in payloads</div>{% else %}
+        <table><thead><tr><th>Actor</th><th>Scene</th><th>Wound</th><th>Summary</th></tr></thead><tbody>
+        {% for w in wounds %}<tr><td>{{ w.actor }}</td><td><code>{{ w.scene_id }}</code></td><td>{{ w.wound }}</td><td class="small">{{ w.summary | truncate: 60 }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% endif %}
+        <p class="small muted">View: <code>wounds</code> in <code>{{ campaign.db_path }}</code></p>
+      </div>
+      <div>
+        <h3>Clocks</h3>
+        {% if clocks.size == 0 %}<div class="empty small">No clocks</div>{% else %}
+        <table><thead><tr><th>Name</th><th>Ticks</th><th>Kind</th></tr></thead><tbody>
+        {% for c in clocks %}<tr><td><code>{{ c.name }}</code></td><td>{{ c.ticks }}/{{ c.segments }} {% if c.completed %}✓{% endif %}</td><td>{{ c.kind }}</td></tr>{% endfor %}
+        </tbody></table>
+        {% endif %}
+        <h3>Manifest</h3>
+        <pre class="small json">{{ manifest.pretty }}</pre>
+      </div>
+    </div>
+    <h3>Cheap queries (no LLM)</h3>
+    <pre>jq -c 'select(.type=="fused.choice.say_yes")' {{ campaign.events_path }}
+jq -c 'select(.type | startswith("fused.choice."))' {{ campaign.events_path }}
+sqlite3 {{ campaign.db_path }} "SELECT subject, kind, summary FROM events ORDER BY seq DESC LIMIT 5"
+duckdb -c "SELECT type, count(*) FROM read_json('{{ campaign.events_path }}') GROUP BY type"</pre>
+  </section>
+
+  <section id="raw">
+    <h2>Raw JSONL</h2>
+    <p class="small muted">Canonical log: one CloudEvents JSON per line. Copy <code>events.jsonl</code> for offline analysis.</p>
+    <details><summary>Show first 20 lines (pretty)</summary><pre class="json">{% for line in raw_preview %}{{ line }}
+{% endfor %}</pre></details>
+    <p class="small">Full file: <code>{{ campaign.events_path }}</code> · <code>wc -l {{ campaign.events_path }}</code> = {{ campaign.events_count }} · <code>{{ campaign.events_sha256 | truncate: 16 }}…</code></p>
+  </section>
+
+</div></main>
+<footer><div class="wrap">Fused Knowledge Viewer · Liquid {{ liquid_version }} · <code>packages/fused/templates/knowledge.liquid</code> → <code>{{ campaign.bundle }}/index.html</code> · Single-file, no external deps. · <a href="https://github.com/NoRaincheck/dnd-tools">dnd-tools</a></div></footer>
+<script>
+function clearFilters(){document.getElementById('filter-type').value='';document.getElementById('filter-text').value='';document.getElementById('filter-kind').value='';apply()}
+function apply(){
+  const t=document.getElementById('filter-type').value;
+  const k=document.getElementById('filter-kind').value;
+  const q=document.getElementById('filter-text').value.toLowerCase();
+  document.querySelectorAll('.tl-item').forEach(el=>{
+    const okT=!t||el.dataset.type===t;
+    const okK=!k||el.dataset.kind===k;
+    const txt=el.innerText.toLowerCase();
+    const okQ=!q||txt.includes(q);
+    el.style.display=(okT&&okK&&okQ)?'':'none';
+  })
+}
+document.getElementById('filter-type').addEventListener('change',apply);
+document.getElementById('filter-kind').addEventListener('change',apply);
+document.getElementById('filter-text').addEventListener('input',apply);
+</script>
+</body>
+</html>
