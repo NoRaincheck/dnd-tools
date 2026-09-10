@@ -33,6 +33,7 @@ Quickstart::
 
 from __future__ import annotations
 
+from .choice import ChoiceResolver, assess_trivial
 from .events import append_event, iter_events, validate_event, validate_log
 from .memory import build_agent_context, compact_fused_transcript, summarize_fused
 from .models import (
@@ -40,6 +41,7 @@ from .models import (
     EFFECT_TICKS,
     CampaignBundleMeta,
     CharacterTraits,
+    Choice,
     Clock,
     Effect,
     EffectLevel,
@@ -58,6 +60,8 @@ __all__ = [
     "EFFECT_TICKS",
     "CampaignBundleMeta",
     "CharacterTraits",
+    "Choice",
+    "ChoiceResolver",
     "Clock",
     "Effect",
     "EffectLevel",
@@ -68,6 +72,7 @@ __all__ = [
     "Scene",
     "SceneStatus",
     "append_event",
+    "assess_trivial",
     "build_agent_context",
     "build_projection",
     "build_site",

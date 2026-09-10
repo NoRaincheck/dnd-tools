@@ -61,6 +61,10 @@ class FusedTools:
             "set_clock",
             "tick_clock",
             "visualize_clocks",
+            "propose_choice",
+            "resolve_choice",
+            "decide_via_triple_o",
+            "list_choices",
             "visualize_map",
             "get_names_of_all_players",
             "get_names_of_all_monsters",
@@ -261,6 +265,62 @@ class FusedTools:
         res = self.fstate.mark_stress(actor, int(delta))
         self.fstate.campaign.inner.log_tool("mark_stress", {"actor": actor, "delta": delta}, res)
         return res
+
+    # -- choices (campaign branching, LLM-driven + Say Yes) --------------------
+    def propose_choice(
+        self,
+        actor: str,
+        situation: str,
+        obvious: str,
+        option: str,
+        odd: str,
+        traits: list[str] | None = None,
+        position: str = "risky",
+        effect: str = "standard",
+        scene_id: str | None = None,
+    ) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        choice = self.fstate.propose_choice(
+            actor, situation, obvious, option, odd, traits=traits, position=position, effect=effect, scene_id=scene_id
+        )
+        res = asdict(choice)
+        self.fstate.campaign.inner.log_tool("propose_choice", {"actor": actor, "situation": situation}, res)
+        return res
+
+    def resolve_choice(self, choice_id: str, advantage: str | None = None, force_roll: bool = False) -> dict[str, Any]:
+        from dataclasses import asdict
+
+        choice = self.fstate.resolve_choice(choice_id, advantage=advantage, force_roll=force_roll)
+        res = asdict(choice)
+        self.fstate.campaign.inner.log_tool("resolve_choice", {"choice_id": choice_id}, res)
+        return res
+
+    def decide_via_triple_o(
+        self,
+        actor: str,
+        situation: str,
+        obvious: str,
+        option: str,
+        odd: str,
+        traits: list[str] | None = None,
+        position: str = "risky",
+        effect: str = "standard",
+        advantage: str | None = None,
+    ) -> dict[str, Any]:
+        res = self.fstate.decide_via_triple_o(
+            actor, situation, obvious, option, odd, traits=traits, position=position, effect=effect, advantage=advantage
+        )
+        self.fstate.campaign.inner.log_tool("decide_via_triple_o", {"actor": actor, "situation": situation}, res)
+        return res
+
+    def list_choices(self, scene_id: str | None = None) -> list[dict[str, Any]]:
+        from dataclasses import asdict
+
+        choices = self.fstate.choices if not scene_id else [c for c in self.fstate.choices if c.scene_id == scene_id]
+        r = [asdict(c) for c in choices]
+        self.fstate.campaign.inner.log_tool("list_choices", {"scene_id": scene_id}, {"count": len(r)})
+        return r
 
     # -- effects / history traversal -----------------------------------------
     def record_effect(
@@ -574,6 +634,84 @@ class FusedTools:
                     "name": "summarize_fused",
                     "description": "Compact fused state summary for LLM context.",
                     "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "propose_choice",
+                    "description": "Propose a campaign Choice: LLM-authored Triple-O branches (obvious/option/odd) + Position/Effect gate. Trivial choices auto Say Yes to Obvious but still logged as visible choice.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string"},
+                            "situation": {"type": "string", "description": "Current dilemma / fiction context"},
+                            "obvious": {
+                                "type": "string",
+                                "description": "Obvious branch — most predictable given Traits",
+                            },
+                            "option": {"type": "string"},
+                            "odd": {"type": "string"},
+                            "traits": {"type": "array", "items": {"type": "string"}},
+                            "position": {"type": "string", "enum": ["controlled", "risky", "desperate"]},
+                            "effect": {"type": "string", "enum": ["limited", "standard", "great", "zero", "extreme"]},
+                            "scene_id": {"type": "string"},
+                        },
+                        "required": ["actor", "situation", "obvious", "option", "odd"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "resolve_choice",
+                    "description": "Resolve a proposed Choice: if trivial (controlled/low-risk) Say Yes auto-selects Obvious with reason; else rolls Triple-O 1d6 (4-6 obvious,2-3 option,1 odd). Always logs proposal+resolution visibly.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "choice_id": {"type": "string"},
+                            "advantage": {"type": "string", "enum": ["advantage", "disadvantage"]},
+                            "force_roll": {
+                                "type": "boolean",
+                                "description": "Force dice even if trivial (for testing)",
+                            },
+                        },
+                        "required": ["choice_id"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "decide_via_triple_o",
+                    "description": "One-shot: propose Choice + resolve via Triple-O/Say Yes. LLM derives all three branches; trivial auto-resolves to Obvious with visible log.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "actor": {"type": "string"},
+                            "situation": {"type": "string"},
+                            "obvious": {"type": "string"},
+                            "option": {"type": "string"},
+                            "odd": {"type": "string"},
+                            "traits": {"type": "array", "items": {"type": "string"}},
+                            "position": {"type": "string", "enum": ["controlled", "risky", "desperate"]},
+                            "effect": {"type": "string", "enum": ["limited", "standard", "great", "zero", "extreme"]},
+                            "advantage": {"type": "string", "enum": ["advantage", "disadvantage"]},
+                        },
+                        "required": ["actor", "situation", "obvious", "option", "odd"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "list_choices",
+                    "description": "List campaign Choices (including trivial Say Yes) with their proposal and resolution. Queryable history of unfolding decisions.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"scene_id": {"type": "string"}},
+                        "required": [],
+                    },
                 },
             },
             # sense (minimal, map remains valuable for journalistic “where”)

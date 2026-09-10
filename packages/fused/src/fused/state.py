@@ -27,6 +27,7 @@ from .models import (
     CONSEQUENCE_TABLE,
     EFFECT_TICKS,
     CharacterTraits,
+    Choice,
     Clock,
     Effect,
     EffectLevel,
@@ -61,6 +62,12 @@ class FusedState:
         self._pending: dict[str, dict[str, str]] = {}  # actor -> {action, position, effect}
         self._stress: dict[str, int] = {}  # actor -> stress 0-9
         self._stress_max: int = 9
+        # campaign choices (Triple-O + Say Yes) — append-only, event-sourced
+        self.choices: list[Choice] = []
+        self._choice_counter: int = 0
+        from .choice import ChoiceResolver as _CR
+
+        self.choice_resolver = _CR(seed=seed_val)
 
         # --- event log layout ---
         # bundle_root is the campaign directory: events.jsonl + snapshots/ + manifest.json + projections/
@@ -495,6 +502,113 @@ class FusedState:
         self._update_manifest()
         return eff
 
+    # -- choices (campaign branching via Triple-O + Say Yes) ---------------
+    def propose_choice(
+        self,
+        actor: str,
+        situation: str,
+        obvious: str,
+        option: str,
+        odd: str,
+        traits: list[str] | None = None,
+        position: str = "risky",
+        effect: str = "standard",
+        scene_id: str | None = None,
+    ) -> Choice:
+        sid = scene_id or self.active_scene_id or "scene-00"
+        cid = Choice.make_id(sid, self._choice_counter, actor)
+        self._choice_counter += 1
+        choice = self.choice_resolver.propose(
+            cid, sid, actor, situation, obvious, option, odd, traits=traits, position=position, effect=effect
+        )
+        self.choices.append(choice)
+        # canonical propose event (also an Effect for traverse_history)
+        from dataclasses import asdict
+
+        self.record_effect(
+            "choice",
+            actor,
+            f"Choice proposed: {situation} | O:{obvious} / Opt:{option} / Odd:{odd}",
+            payload={
+                "choice": asdict(choice),
+                "proposal": {"obvious": obvious, "option": option, "odd": odd},
+                "position": position,
+                "effect": effect,
+            },
+            scene_id=sid,
+            _event_type="fused.choice.proposed",
+        )
+        self.campaign.inner.add_transcript(
+            f"[choice {cid}] propose {actor}: {situation} | O:{obvious} / Opt:{option} / Odd:{odd}"
+        )
+        return choice
+
+    def resolve_choice(
+        self,
+        choice_id: str,
+        advantage: str | None = None,
+        force_roll: bool = False,
+    ) -> Choice:
+        choice = next((c for c in self.choices if c.choice_id == choice_id), None)
+        if not choice:
+            raise KeyError(choice_id)
+        cur = self.current_scene()
+        threat = cur.threat if cur else None
+        # choice_resolver mutates in place
+        self.choice_resolver.resolve(choice, scene_threat=threat, advantage=advantage, force_roll=force_roll)
+        from dataclasses import asdict
+
+        ce_type = "fused.choice.say_yes" if choice.trivial else "fused.choice.resolved"
+        # single canonical event via record_effect (also appends to JSONL)
+        self.record_effect(
+            "choice",
+            choice.actor,
+            f"Choice {choice.category} ({choice.resolved_via}): {choice.choice_text}{' — Say Yes trivial: ' + choice.trivial_reason if choice.trivial else ''}",
+            payload={
+                "choice": asdict(choice),
+                "choice_id": choice.choice_id,
+                "trivial": choice.trivial,
+                "trivial_reason": choice.trivial_reason,
+                "resolved_via": choice.resolved_via,
+                "category": choice.category,
+                "roll": choice.roll,
+                "rolls": choice.rolls,
+                "choice_text": choice.choice_text,
+                "situation": choice.situation,
+            },
+            scene_id=choice.scene_id,
+            _event_type=ce_type,
+        )
+        # auto tick clock if needed and not trivial zero
+        if choice.ticks and cur and cur.clocks and choice.category != "odd":
+            # trivial still ticks 1 for momentum; rolled ticks per effect
+            primary = cur.clocks[0].name
+            if primary in self.clocks:
+                self.tick_clock(primary, choice.ticks)
+        self._update_manifest()
+        return choice
+
+    def decide_via_triple_o(
+        self,
+        actor: str,
+        situation: str,
+        obvious: str,
+        option: str,
+        odd: str,
+        traits: list[str] | None = None,
+        position: str = "risky",
+        effect: str = "standard",
+        advantage: str | None = None,
+    ) -> dict[str, Any]:
+        """One-shot: propose + resolve + return choice as dict. Convenience for tools/session."""
+        ch = self.propose_choice(
+            actor, situation, obvious, option, odd, traits=traits, position=position, effect=effect
+        )
+        resolved = self.resolve_choice(ch.choice_id, advantage=advantage)
+        from dataclasses import asdict
+
+        return asdict(resolved)
+
     # -- snapshot / restore (includes traits + scenes + effects + clocks) -------
     def snapshot(self) -> dict[str, Any]:
         from dataclasses import asdict
@@ -509,6 +623,8 @@ class FusedState:
             "effect_counter": self._effect_counter,
             "clocks": {k: asdict(v) for k, v in self.clocks.items()},
             "stress": dict(self._stress),
+            "choices": [asdict(c) for c in self.choices],
+            "choice_counter": self._choice_counter,
         }
 
     def restore(self, snap: dict[str, Any]) -> None:
@@ -562,6 +678,24 @@ class FusedState:
                         self.clocks[c.name] = Clock(name=c.name, segments=c.segments, kind=c.kind, ticks=c.ticks)
         self._stress = dict(snap.get("stress", {}))
         self._pending = {}
+        # choices
+        raw_choices = snap.get("choices", [])
+        from .models import Choice as _Choice
+
+        self.choices = []
+        for c in raw_choices:
+            if isinstance(c, dict):
+                try:
+                    self.choices.append(_Choice(**c))
+                except Exception:  # noqa: S112
+                    continue
+            elif isinstance(c, _Choice):
+                self.choices.append(c)
+        self._choice_counter = int(snap.get("choice_counter", len(self.choices)))
+        # restore choice_resolver seed
+        from .choice import ChoiceResolver as _CR2
+
+        self.choice_resolver = _CR2(seed=self.seed)
 
     # -- file snapshot helpers --------------------------------------------
     def take_snapshot(self, seq: int | None = None) -> Path:
@@ -669,7 +803,79 @@ class FusedState:
         summary = data.get("summary", "")
         eid = evt.get("id", "")
 
-        if ce_type == "fused.trait.registered":
+        if ce_type in ("fused.choice.proposed", "fused.choice.resolved", "fused.choice.say_yes"):
+            # hydrate choice state for replay (choices are event-sourced)
+            choice_data = payload.get("choice") if isinstance(payload, dict) else None
+            if choice_data and isinstance(choice_data, dict):
+                from .models import Choice as _ChoiceReplay
+
+                try:
+                    existing = next((c for c in self.choices if c.choice_id == choice_data.get("choice_id")), None)
+                    if existing is None:
+                        self.choices.append(_ChoiceReplay(**choice_data))
+                        self._choice_counter = max(self._choice_counter, len(self.choices))
+                    elif ce_type in ("fused.choice.resolved", "fused.choice.say_yes"):
+                        # update existing with resolved fields (trivial/category/choice_text etc.)
+                        for k, v in choice_data.items():
+                            if hasattr(existing, k):
+                                setattr(existing, k, v)
+                except Exception:
+                    pass
+                # replay clock tick for choice (mirrors live resolve_choice tick)
+                # live does: if choice.ticks and cur and cur.clocks and category != "odd": tick primary clock
+                if ce_type in ("fused.choice.resolved", "fused.choice.say_yes"):
+                    try:
+                        ticks_val = int(choice_data.get("ticks", 0) or 0)
+                        cat = str(choice_data.get("category") or "")
+                        if ticks_val and cat != "odd":
+                            sid_choice = str(choice_data.get("scene_id") or scene_id)
+                            target_scene = next((s for s in self.scenes if s.scene_id == sid_choice), None)
+                            primary_name: str | None = None
+                            if target_scene and target_scene.clocks:
+                                first = target_scene.clocks[0]
+                                primary_name = first.name if hasattr(first, "name") else str(first.get("name", ""))  # type: ignore[union-attr]
+                            # fallback to global clocks first entry if scene has no clocks yet
+                            if not primary_name and self.clocks:
+                                # prefer clock whose name starts with scene_id
+                                for k in self.clocks:
+                                    if k.startswith(sid_choice):
+                                        primary_name = k
+                                        break
+                                if not primary_name:
+                                    primary_name = next(iter(self.clocks))
+                            if primary_name and primary_name in self.clocks:
+                                clk = self.clocks[primary_name]
+                                # add ticks; clock-tick event replay below is idempotent via `after`, so no double-count
+                                clk.add_ticks(ticks_val)
+                                for s in self.scenes:
+                                    for c in s.clocks:
+                                        if hasattr(c, "name"):
+                                            if c.name == primary_name:  # type: ignore[union-attr]
+                                                c.ticks = clk.ticks  # type: ignore[union-attr]
+                                                break
+                                        elif isinstance(c, dict) and c.get("name") == primary_name:
+                                            c["ticks"] = clk.ticks
+                                            break
+                    except Exception:
+                        pass
+            # also show as effect for traverse_history (so choice branches are traversable via generic history)
+            eff = Effect(
+                effect_id=eid,
+                scene_id=scene_id,
+                actor=actor,
+                kind=kind,
+                summary=summary,
+                round=int(fused.get("round", 0)),
+                payload=dict(payload),
+            )
+            self.effects.append(eff)
+            self._effect_counter = max(self._effect_counter, len(self.effects))
+            for s in self.scenes:
+                if s.scene_id == scene_id:
+                    if eid not in s.effect_ids:
+                        s.effect_ids.append(eid)
+                    break
+        elif ce_type == "fused.trait.registered":
             # payload contains traits list; reconstruct minimal CharacterTraits
             name = actor
             if name not in self.traits_registry:
@@ -768,24 +974,43 @@ class FusedState:
                                     c.ticks = ticks_v
                                     break
                     elif kind == "clock-tick":
-                        clk = self.clocks.get(name)
-                        if clk:
-                            clk.add_ticks(int(payload.get("ticks", 0)))
-                            for s in self.scenes:
-                                for c in s.clocks:
-                                    if isinstance(c, dict):
-                                        if c.get("name") == name:
-                                            c["ticks"] = clk.ticks
-                                            break
-                                    elif c.name == name:
-                                        c.ticks = clk.ticks
-                                        break
-                        elif "after" in payload:
-                            # fallback: create clock with after ticks if missing (replay before snapshot)
-                            from .models import Clock as _Clk2
+                        # idempotent: if payload has `after`, set directly to avoid double-count when choice branch already ticked
+                        if "after" in payload:
+                            try:
+                                after_val = int(payload.get("after", 0))
+                                clk_existing = self.clocks.get(name)
+                                if clk_existing is not None:
+                                    # set to after (capped)
+                                    clk_existing.ticks = max(0, min(clk_existing.segments, after_val))
+                                    for s in self.scenes:
+                                        for c in s.clocks:
+                                            if isinstance(c, dict):
+                                                if c.get("name") == name:
+                                                    c["ticks"] = clk_existing.ticks
+                                                    break
+                                            elif c.name == name:
+                                                c.ticks = clk_existing.ticks
+                                                break
+                                else:
+                                    from .models import Clock as _Clk2
 
-                            segs2 = int(payload.get("segments", 6))
-                            self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=int(payload.get("after", 0)))
+                                    segs2 = int(payload.get("segments", 6))
+                                    self.clocks[name] = _Clk2(name=name, segments=segs2, ticks=after_val)
+                            except Exception:
+                                pass
+                        else:
+                            clk = self.clocks.get(name)
+                            if clk:
+                                clk.add_ticks(int(payload.get("ticks", 0)))
+                                for s in self.scenes:
+                                    for c in s.clocks:
+                                        if isinstance(c, dict):
+                                            if c.get("name") == name:
+                                                c["ticks"] = clk.ticks
+                                                break
+                                        elif c.name == name:
+                                            c.ticks = clk.ticks
+                                            break
             elif kind == "action-roll":
                 # hydrate clock ticks buried in action-roll payload (see Findings #1)
                 # payload is {"action_roll": {..., "clock": {"clock": name, "ticks": n, ...}}, "clock": name, "ticks": n}
