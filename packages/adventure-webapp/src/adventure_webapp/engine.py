@@ -315,10 +315,10 @@ class AdventureEngine:
         except Exception:
             pass
 
-        # narration
+        # narration — template-aware flavor (see llm.py _TEMPLATE_FLAVOR)
         clk_now = _pick_clock(game.fstate, game.scene)
         completed = bool(clk_now.completed) if clk_now else False
-        narration = narrate_outcome(game.actor, pending.beat_title, pick_text, roll, completed)
+        narration = narrate_outcome(game.actor, pending.beat_title, pick_text, roll, completed, game.template_id)
         pending.narration = narration
 
         # advance beat index regardless of success — success ticks clock, failure still moves fiction forward

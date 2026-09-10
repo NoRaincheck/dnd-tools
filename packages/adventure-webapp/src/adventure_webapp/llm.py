@@ -4,6 +4,41 @@ from __future__ import annotations
 
 from typing import Any
 
+_TEMPLATE_FLAVOR: dict[str, dict[str, str]] = {
+    "veiled-archive": {
+        "critical": " The ward flares, almost approving.",
+        "partial": " You gain ground, but pay for it.",
+        "failure": " The archive shudders. A new obstacle appears.",
+        "completed": " The archive's ward chimes — the prize is yours.",
+    },
+    "goblin-ambush": {
+        "critical": " Steel sings — the line holds.",
+        "partial": " You gain ground, but the press is heavy.",
+        "failure": " War-horns answer from the treeline. A new threat emerges.",
+        "completed": " The pass is held — the road is yours.",
+    },
+    "starlit-heist": {
+        "critical": " Moonlight catches the sigil perfectly.",
+        "partial": " You slip, but a ward flickers.",
+        "failure": " A bell jingles somewhere above. Guards stir.",
+        "completed": " The sigil is yours — you vanish into the night.",
+    },
+}
+
+_GENERIC_FLAVOR: dict[str, str] = {
+    "critical": " Fortune favours the bold.",
+    "partial": " You gain ground, but pay for it.",
+    "failure": " It goes awry. A new obstacle appears.",
+    "completed": " The objective is secured.",
+}
+
+
+def _flavor(template_id: str, key: str) -> str:
+    tpl = _TEMPLATE_FLAVOR.get(template_id)
+    if tpl and key in tpl:
+        return tpl[key]
+    return _GENERIC_FLAVOR.get(key, "")
+
 
 def _heuristic_narration(
     actor: str,
@@ -15,6 +50,7 @@ def _heuristic_narration(
     consequence: list[str],
     ticks: int,
     completed: bool,
+    template_id: str = "veiled-archive",
 ) -> str:
     verb = {
         "critical": "with startling grace",
@@ -27,13 +63,13 @@ def _heuristic_narration(
         cons = " — " + "; ".join(consequence[:2])
     extra = ""
     if outcome == "critical":
-        extra = " The ward flares, almost approving."
+        extra = _flavor(template_id, "critical")
     elif outcome == "partial":
-        extra = " You gain ground, but pay for it."
+        extra = _flavor(template_id, "partial")
     elif outcome == "failure":
-        extra = " The archive shudders. A new obstacle appears."
+        extra = _flavor(template_id, "failure")
     if completed:
-        extra += " The archive's ward chimes — the prize is yours."
+        extra += _flavor(template_id, "completed")
     return (
         f"{actor} chose: “{pick_text}” — {verb} ({position}/{effect}, ticks {ticks}){cons}.{extra} "
         f"[{beat_title.strip()}]"
@@ -62,6 +98,7 @@ def narrate_outcome(
     pick_text: str,
     action_roll: dict[str, Any],
     clock_completed: bool,
+    template_id: str = "veiled-archive",
 ) -> str:
     outcome = str(action_roll.get("outcome", "partial"))
     position = str(action_roll.get("position", "risky"))
@@ -72,7 +109,9 @@ def narrate_outcome(
     llm_text = _try_llm_narration(actor, pick_text, outcome, position, consequence=cons)
     if llm_text:
         return llm_text + (f" [ticks {ticks}]" if ticks else "")
-    return _heuristic_narration(actor, beat_title, pick_text, outcome, position, effect, cons, ticks, clock_completed)
+    return _heuristic_narration(
+        actor, beat_title, pick_text, outcome, position, effect, cons, ticks, clock_completed, template_id
+    )
 
 
 def _try_llm_narration(actor: str, pick_text: str, outcome: str, position: str, consequence: list[str]) -> str | None:
