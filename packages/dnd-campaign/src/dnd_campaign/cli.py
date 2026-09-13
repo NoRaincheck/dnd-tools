@@ -43,7 +43,17 @@ def cmd_demo(args: argparse.Namespace) -> None:
         print(json.dumps({k: r[k] for k in ("players", "monsters", "rounds")}, indent=2))
     fmt = getattr(args, "format", "text")
     out = getattr(args, "out", "")
-    if fmt == "html" and out:
+    if fmt == "markdown":
+        from dnd_tools.lonelog import to_markdown
+
+        all_lines = [ln for r in results for ln in r["transcript"]]
+        md = to_markdown(all_lines, title=f"dnd-campaign demo (seed {args.seed})")
+        if out:
+            Path(out).write_text(md)
+            print(f"Rendered lonelog markdown to {out}")
+        else:
+            print(md)
+    elif fmt == "html" and out:
         from dnd_tools.lonelog import render_html
 
         all_lines = [ln for r in results for ln in r["transcript"]]
@@ -63,8 +73,8 @@ def main() -> None:
     d.add_argument("--seed", type=int, default=42)
     d.add_argument("--turns", type=int, default=15)
     d.add_argument("--save", type=str, default="")
-    d.add_argument("--format", choices=["text", "html"], default="text")
-    d.add_argument("--out", type=str, default="", help="output file for --format html")
+    d.add_argument("--format", choices=["text", "markdown", "html"], default="text")
+    d.add_argument("--out", type=str, default="", help="output file for --format html/markdown")
     args = p.parse_args()
     if args.cmd == "demo":
         cmd_demo(args)
