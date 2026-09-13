@@ -6,7 +6,7 @@ import argparse
 
 
 def cmd_demo(args: argparse.Namespace) -> None:
-    from .core import TripleO
+    from .core import TripleO, to_lonelog
     from .middleware import TripleOMiddleware, make_triple_o_provider
     from .tools import TripleOTools
 
@@ -47,17 +47,15 @@ def cmd_demo(args: argparse.Namespace) -> None:
         ]
         for char, sit, ob, op, od in cases:
             out = mw.run_heuristic(player_name=char, traits="stubborn", situation=sit, obvious=ob, option=op, odd=od)
-            print(
-                f"\n{char} — {sit}\n  roll {out['roll']['roll']} → {out['roll']['category']}: {out['roll']['choice']}"
-            )
+            print("\n```lonelog\n" + "\n".join(to_lonelog(out["roll"])) + "\n```")
             print(f"  spark: {out['spark']['disposition']} → {out['spark']['action']} via {out['spark']['method']}")
         # also show questions + group
         print("\n--- GM Question ---")
         q = tools.ask_triple_o("Do they search for traps?", yes_is_obvious=True)
-        print(f"  {q['question']} → {q['category']} ({q['roll']}) → {q['answer']}")
+        print("```lonelog\n" + "\n".join(to_lonelog(q)) + "\n```")
         print("\n--- Group Decision ---")
         g = tools.group_triple_o(["brave", "cautious", "reckless"], ["hold", "negotiate", "flee"])
-        print(f"  traits {g['traits']} → roll {g['roll']} {g['category']} → {g['choice']}")
+        print("```lonelog\n" + "\n".join(to_lonelog(g)) + "\n```")
         print(f"\nTool traces: {len(tools.tool_trace)} — heuristic mode (seed {args.seed})")
 
 

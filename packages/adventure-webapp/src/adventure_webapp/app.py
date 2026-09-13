@@ -105,7 +105,13 @@ def get_story(game_id: str) -> dict[str, Any]:
         game = engine.get_game(game_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="game not found") from None
-    return {"story": game.story_text(), "turns": game.turns_view(), "clock": game.clock(), "completed": game.completed}
+    return {
+        "story": game.story_text(),
+        "lonelog": game.story_lonelog(),
+        "turns": game.turns_view(),
+        "clock": game.clock(),
+        "completed": game.completed,
+    }
 
 
 # Static site — mount after API so "/" serves index

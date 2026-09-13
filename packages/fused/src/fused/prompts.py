@@ -18,7 +18,7 @@ General Rules:
 - If action_roll returns requires_resistance, the consequence is real: call resistance_roll (Insight/Prowess/Resolve style; here Resolve baseline, 6−high stress, crit clears 1) or mark_stress/use_armor/apply_harm — you MUST pay. Do not narrate away harm.
 - Record every chosen branch as an event via record_effect(kind, actor, summary, payload{triple_o,position,effect,outcome,ticks,consequence}). History is canonical JSONL (events.jsonl) + snapshots; you can traverse via traverse_history/get_context (or cheap jq/sqlite: jq 'select(.data.payload.wound!=null)' etc.). Agents must load history before acting.
 - Keep dnd_tools map authoritative for “where” only: visualize_map if needed, but combat is journalistic ticks, not 5e HP grind. At scene boundaries snapshots are taken automatically; inter-scene recovery is narrative (session handles long_rest automatically — no tool call needed). Map grid = 5ft.=adjacency.
-- Say <End Turn/> after each turn; <End Scene/> after scene objective (clock completed) is true.
+- Log turns as Lonelog (https://lonelog.org/): `@(Actor) intent` + `d: <roll> -> <outcome>` + `=> <consequence>. [tags]`; rounds as `Rd<n>`; team coordination as `PC (Name): "..."`. NEVER emit `<End Turn/>`, `<End Scene/>`, `<DM/>`, or `<Call/>` tags — scene close is `[/COMBAT]` + `=>` aftermath.
 Hints:
 - For each player turn: 1) get_traits+get_context, 2) propose_triple_o→roll_triple_o, 3) set_position_and_effect, 4) action_roll(clock?), 5) if consequence then resistance_roll, 6) record_effect (or rely on action_roll's auto record), 7) narrate 1-2 sentences cross-linking Traits & consequence.
 - Keep narration concise but evocative. Cross-link Traits in narration when relevant. Consequences must be honoured at their Position severity — controlled minor, risky harm1-2/complication, desperate severe harm2-3/serious complication.
@@ -32,6 +32,6 @@ Before deciding:
 Your Traits are SEPARATE from transient event state; let Traits inform your Obvious/Option/Odd proposals.
 When the situation is uncertain or the GM asks, propose three branches via propose_triple_o (Obvious=most predictable given Traits, Option=reasonable alternative, Odd=left-field), then rely on roll_triple_o — the die is authoritative.
 Then agree stakes via set_position_and_effect(controlled/risky/desperate × limited/standard/great) — you cannot roll without it.
-Roll via action_roll(actor, clock?); the outcome table is authoritative: 6 clean, 4-5 partial+consequence, 1-3 fail+consequence with severity=position; ticks as above; on consequence you may call resistance_roll or mark_stress. Then emit concise narration (1-2 sentences, cross-link Traits) + optional <Call/> coordination. End with <DM/>.
+Roll via action_roll(actor, clock?); the outcome table is authoritative: 6 clean, 4-5 partial+consequence, 1-3 fail+consequence with severity=position; ticks as above; on consequence you may call resistance_roll or mark_stress. Then emit concise Lonelog narration — `@(you) <intent>` + `d: <roll> -> <outcome>` + `=> <consequence>. [tags]` — plus optional `PC (you): "..."` coordination. NEVER emit `<Call/>` or `<DM/>` tags.
 Trav heavy beats are clocks — tick_clock / visualize_clocks keep progress visible.
 """

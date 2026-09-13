@@ -11,6 +11,16 @@ from .agents import (  # Tau-native; DMAgent/PlayerAgent shimmed
     LLMClient,
     heuristic_player_turn,
 )
+from .lonelog import (
+    action,
+    aftermath,
+    consequence,
+    encounter_snapshot,
+    foe_tag,
+    pc_tag,
+    round_marker,
+    scene_header,
+)
 from .mapgen import make_indoor_map, make_outdoor_map
 from .models import ALL_WEAPONS, MONSTER_TEMPLATES, SPELLS_NORM, Character
 from .state import GameState
@@ -315,10 +325,13 @@ class Simulation:
             # re-evaluate distance after moves
             dist = self.state.distance_feet(name, target)
             if is_melee and dist > 5:
+                self.state.add_transcript(action(name, f"Close on {target} [Far->Close]"))
                 self.state.add_transcript(
-                    f"{name} closes but still {dist:.0f}ft from {target} — out of melee range, tries ranged or holds"
+                    consequence(
+                        f"still {dist:.0f}ft from {target} — out of melee, holds.",
+                        foe_tag(name, hp=ch.hp, max_hp=ch.max_hp, pos="Close"),
+                    )
                 )
-                # if has no ranged, skip attack
             else:
                 mod = 3
                 try:
@@ -327,6 +340,7 @@ class Simulation:
                         mod = ch.ability_mod(stat) + ch.pb
                 except:
                     pass
+                self.state.add_transcript(action(name, f"Attack {target} with {weap}"))
                 atk = self.tools.roll_attack(
                     name,
                     target,
@@ -337,12 +351,16 @@ class Simulation:
                     action_cost=1,
                 )
                 if atk.get("out_of_range"):
-                    self.state.add_transcript(f"{name} cannot reach {target} (out_of_range) — moves next turn")
+                    self.state.add_transcript(consequence(f"cannot reach {target} (out_of_range) — moves next turn."))
+                elif atk.get("valid") is False:
+                    self.state.add_transcript(consequence(f"attack fizzles ({atk.get('reason', 'invalid')})."))
                 else:
+                    hit = bool(atk.get("success"))
+                    crit = " Critical" if atk.get("critical") else ""
                     self.state.add_transcript(
-                        f"{name} (monster) attacks {target}: roll {atk.get('roll')} vs AC {atk.get('ac')} -> {'HIT' if atk.get('success') else 'MISS'}"
+                        f"d: d20+{mod}={atk.get('roll')} vs AC {atk.get('ac')} -> {'Hit' if hit else 'Miss'}{crit}"
                     )
-                    if atk.get("success"):
+                    if hit:
                         dice_expr = w.damage_dice if w else "1d6"
                         dmg = self.tools.roll_dmg(
                             name,
@@ -361,12 +379,27 @@ class Simulation:
                                     true_dmg = 0
                                 elif e["kind"] == "vulner":
                                     true_dmg *= 2
-                        self.tools.update_hp(target, -true_dmg)
-                        self.state.add_transcript(
-                            f"  Damage {true_dmg} ({dmg['damage_type']}) to {target} HP now {self.state.check_hp(target)}"
+                        upd = self.tools.update_hp(target, -true_dmg)
+                        tgt = self.state.get_character(target)
+                        is_pc = bool(tgt and tgt.is_player)
+                        tag = (
+                            pc_tag(target, hp=upd["hp"], max_hp=upd["max_hp"])
+                            if is_pc
+                            else foe_tag(target, hp=upd["hp"], max_hp=upd["max_hp"], pos="Close")
                         )
+                        if not upd["alive"]:
+                            tag = f"[PC:{target}|HP 0]" if is_pc else f"[F:{target}|dead]"
+                        self.state.add_transcript(
+                            consequence(
+                                f"{true_dmg} dmg ({dmg['damage_type']}) to {target}.",
+                                tag,
+                            )
+                        )
+                    else:
+                        self.state.add_transcript(consequence(f"{name}'s strike misses {target}."))
         else:
-            self.state.add_transcript(f"{name} cannot see {target}, holds position")
+            self.state.add_transcript(action(name, f"Seek {target}"))
+            self.state.add_transcript(consequence(f"no LoS on {target}, holds position."))
         # 5. bookkeep
         self._end_of_turn_bookkeeping(name)
 
@@ -376,8 +409,10 @@ class Simulation:
             return
         self.tools.check_side(name)
         if self.use_heuristic or not self.llm:
-            line = heuristic_player_turn(name, self.tools, self.state)
-            self.state.add_transcript(line)
+            block = heuristic_player_turn(name, self.tools, self.state)
+            for line in block.splitlines():
+                if line.strip():
+                    self.state.add_transcript(line)
         else:
             # Tau-native player turn — fully in-process, no subprocess
             try:
@@ -403,12 +438,16 @@ class Simulation:
                     model=model,
                     max_turns=6,
                 )
-                self.state.add_transcript(line)
+                for ln in line.splitlines():
+                    if ln.strip():
+                        self.state.add_transcript(ln)
             except Exception as e:
                 # Keep simulation alive; log and fall back to heuristic for this turn
-                self.state.add_transcript(f"{name}: [tau fallback {e}] <DM/>")
-                line = heuristic_player_turn(name, self.tools, self.state)
-                self.state.add_transcript(line)
+                self.state.add_transcript(f"@({name}) [tau fallback {e}]")
+                block = heuristic_player_turn(name, self.tools, self.state)
+                for ln in block.splitlines():
+                    if ln.strip():
+                        self.state.add_transcript(ln)
         self._end_of_turn_bookkeeping(name)
 
     def _end_of_turn_bookkeeping(self, name: str):
@@ -443,13 +482,17 @@ class Simulation:
                 ch.concentration_turns -= 1
                 if ch.concentration_turns <= 0:
                     self.tools.remove_a_concentration(name)
-        self.state.add_transcript("<End Turn/>")
 
     def run(self) -> dict:
+        # Scene + combat open + encounter snapshot (lonelog combat add-on §5.1)
+        pcs = {n: {"hp": c.hp, "max_hp": c.max_hp, "ac": c.ac} for n, c in self.state.players.items()}
+        foes = {n: {"hp": c.hp, "max_hp": c.max_hp, "pos": "Close"} for n, c in self.state.monsters.items()}
+        self.state.add_transcript(scene_header(1, "Encounter opens"))
+        self.state.add_transcript(encounter_snapshot(pcs, foes))
         # Initiative
         init = self.tools.roll_initiative()
-        self.state.add_transcript(f"Initiative: {init}")
-        self.state.add_transcript("<End Turn/>")
+        self.state.add_transcript(round_marker(1, init))
+        last_round = 1
         turn_count = 0
         while turn_count < self.max_turns:
             # check combat ends: one side dead
@@ -469,18 +512,28 @@ class Simulation:
             if self.state.current_turn_idx % len(self.state.initiative_order) == 0:
                 for n in list(self.state.players.keys()) + list(self.state.monsters.keys()):
                     self.tools.check_hp(n)
+            if self.state.round != last_round:
+                last_round = self.state.round
+                self.state.add_transcript(round_marker(last_round))
             if is_monster:
-                self.state.add_transcript(f"--- Monster Turn: {actor} (round {self.state.round}) ---")
                 self._monster_turn(actor)
             else:
-                self.state.add_transcript(f"--- Player Turn: {actor} (round {self.state.round}) ---")
                 self._player_turn(actor)
             self.state.advance_turn()
             turn_count += 1
-            # export transcript chunk? Paper segments by <End Turn/>
         # combat end
         death = self.tools.print_death_point()
-        self.state.add_transcript(f"Combat ended after {turn_count} turns. Deaths: {death}")
+        alive_p = sum(1 for c in self.state.players.values() if c.alive)
+        alive_m = sum(1 for c in self.state.monsters.values() if c.alive)
+        end_tags = " ".join(
+            [pc_tag(n, hp=c.hp, max_hp=c.max_hp) for n, c in self.state.players.items()]
+            + [foe_tag(n, hp=c.hp, max_hp=c.max_hp) for n, c in self.state.monsters.items()]
+        )
+        for line in aftermath(
+            f"Combat ends after {turn_count} turns. Party {alive_p} up, foes {alive_m} up. Deaths: {len(death['log'])}.",
+            end_tags,
+        ):
+            self.state.add_transcript(line)
         return {
             "transcript": self.state.transcript,
             "tool_trace": self.state.tool_trace,

@@ -157,11 +157,38 @@ def run_tau_player_turn_sync(
     model: str,
     max_turns: int = 6,
 ) -> str:
-    """Synchronous wrapper for one tau-driven player turn. Returns transcript line."""
+    """Synchronous wrapper for one tau-driven player turn. Returns lonelog block."""
     ch = state.get_character(player_name)
     if not ch:
-        return f"{player_name}: error no character. <DM/>"
+        return f"@({player_name}) error: no character.\n=> Turn skipped."
+    return _run_tau_block(
+        player_name=player_name,
+        player_class=player_class,
+        tools=tools,
+        state=state,
+        provider=provider,
+        model=model,
+        max_turns=max_turns,
+    )
 
+
+def _run_tau_block(
+    *,
+    player_name: str,
+    player_class: str,
+    tools: Tools,
+    state: GameState,
+    provider,
+    model: str,
+    max_turns: int = 6,
+) -> str:
+    """Run one tau turn and format the narration as a lonelog block."""
+    from .lonelog import action as _action
+    from .lonelog import consequence as _conseq
+
+    ch = state.get_character(player_name)
+    if ch is None:  # pragma: no cover - guarded by caller
+        raise KeyError(player_name)
     system = PLAYER_PROMPT + f"\nYou are {player_name} the {player_class}."
     # Provide turn context — be explicit to force tool calling (tau harness needs directive)
     alive_monsters = [f"{k} HP {v.hp}/{v.max_hp} at {state.get_pos(k)}" for k, v in state.monsters.items() if v.alive]
@@ -173,7 +200,8 @@ def run_tau_player_turn_sync(
         f"Instructions: 1) Call check_valid_attack_line to see if you can hit a monster. "
         f"2) If false, call move_player towards the nearest monster. "
         f"3) If true, call roll_attack (use weapon {ch.equipped_mainhand}). "
-        f"Always use tools via function calling. End narration with <DM/>."
+        f"Always use tools via function calling. Narrate in one short sentence; "
+        f"the harness formats it as lonelog (@/d:/->/=>). Do not emit <DM/> or <End Turn/> tags."
     )
     try:
         text, _traces = asyncio.run(
@@ -187,14 +215,20 @@ def run_tau_player_turn_sync(
             )
         )
         # `_traces` already logged to state.tool_trace via Tools.dispatch; we just return text
-        if text.strip():
-            return f"{player_name}: {text.strip()} <DM/>"
+        clean = " ".join(text.strip().split())
+        clean = clean.replace("<DM/>", "").replace("<End Turn/>", "").strip()
+        if clean:
+            first, _, _rest = clean.partition("\n")
+            return f"{_action(player_name, first.strip())}\n{_conseq(first.strip())}"
         if _traces:
-            return f"{player_name}: (tau tools {len(_traces)}) {text.strip()} <DM/>"
-        return f"{player_name}: (tau no output) <DM/>"
+            last = _traces[-1]
+            tool_name = last.get("tool")
+            n_calls = len(_traces)
+            return f"{_action(player_name, f'uses {tool_name}')}\n{_conseq(f'tools used ({n_calls} calls).')}"
+        return f"{_action(player_name, 'holds position')}\n{_conseq('no output, holds.')}"
     except Exception as e:
         # Fallback — keep simulation alive
-        return f"{player_name}: [tau error {e}] <DM/>"
+        return f"{_action(player_name, f'[tau error {e}]')}\n{_conseq('turn skipped.')}"
 
 
 async def run_tau_harness_async(
@@ -274,10 +308,15 @@ def execute_tool_loop(agent, tools: Tools, max_iters: int = 6) -> list[dict]:  #
 # Heuristic fallback for when LLM unavailable: rule-based player/monster
 # ------------------------------------------------------------------
 def heuristic_player_turn(char_name: str, tools: Tools, state: GameState) -> str:
-    """Simple greedy policy for offline demo without LLM."""
+    """Simple greedy policy for offline demo without LLM. Returns a lonelog block."""
+    from .lonelog import action as _action
+    from .lonelog import consequence as _conseq
+    from .lonelog import foe_tag as _foe
+    from .lonelog import pc_tag as _pc
+
     enemies = [(n, c) for n, c in state.monsters.items() if c.alive]
     if not enemies:
-        return f"{char_name}: no enemies remain. <DM/>"
+        return f"{_action(char_name, 'holds — no enemies remain.')}\n{_conseq('field clear.')}"
     best = None
     best_dist = 1e9
     for n, _ in enemies:
@@ -300,7 +339,7 @@ def heuristic_player_turn(char_name: str, tools: Tools, state: GameState) -> str
             los = tools.check_valid_attack_line(char_name, target)
     ch = state.get_character(char_name)
     if not ch:
-        return f"{char_name}: error. <DM/>"
+        return f"{_action(char_name, 'error: no character.')}\n{_conseq('turn skipped.')}"
     _def = state.get_character(target)
     ac = _def.ac if _def is not None else 10
     dist = state.distance_feet(char_name, target) if best else 100
@@ -328,6 +367,13 @@ def heuristic_player_turn(char_name: str, tools: Tools, state: GameState) -> str
             weapon_name=weap,
             action_cost=1,
         )
+        lines = [_action(char_name, f"Attack {target} with {weap}")]
+        if atk.get("out_of_range"):
+            lines.append(_conseq(f"cannot reach {target} (out_of_range) — moves next turn."))
+            return "\n".join(lines)
+        if atk.get("valid") is False:
+            lines.append(_conseq(f"attack fizzles ({atk.get('reason', 'invalid')})."))
+            return "\n".join(lines)
         if atk.get("success"):
             dmg_expr = "1d8"
             try:
@@ -352,10 +398,19 @@ def heuristic_player_turn(char_name: str, tools: Tools, state: GameState) -> str
                     true = true // 2
                 if e["kind"] == "immune":
                     true = 0
-            tools.update_hp(target, -true)
-            return f"{char_name} attacks {target} with {weap} — {'HIT' if atk['success'] else 'MISS'} for {true} dmg. <DM/>"
+            upd = tools.update_hp(target, -true)
+            crit = " Critical" if atk.get("critical") else ""
+            lines.append(f"d: d20={atk.get('roll')} vs AC {ac} -> Hit{crit}")
+            tag = _foe(target, hp=upd["hp"], max_hp=upd["max_hp"], pos="Close")
+            if not upd["alive"]:
+                tag = f"[F:{target}|dead]"
+            lines.append(_conseq(f"{true} dmg ({dmg['damage_type']}) to {target}.", tag))
+            return "\n".join(lines)
         else:
-            if atk.get("out_of_range"):
-                return f"{char_name} cannot reach {target} (out of range). <DM/>"
-            return f"{char_name} attacks {target} with {weap} — MISS. <DM/>"
-    return f"{char_name} moves and waits. <DM/>"
+            lines.append(f"d: d20={atk.get('roll')} vs AC {ac} -> Miss")
+            lines.append(_conseq(f"{char_name}'s strike misses {target}."))
+            return "\n".join(lines)
+    return (
+        f"{_action(char_name, f'Advance on {target} [Far->Close]')}\n"
+        f"{_conseq('moves and waits.', _pc(char_name, hp=ch.hp, max_hp=ch.max_hp))}"
+    )

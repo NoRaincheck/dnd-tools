@@ -8,6 +8,7 @@ import random
 from pathlib import Path
 
 from .agents import LLMClient
+from .lonelog import render_html, to_markdown
 from .metrics import evaluate_all
 from .simulation import (
     Simulation,
@@ -45,9 +46,19 @@ def cmd_demo(args):
         print(f"[using Tau LLM {args.model} at {args.base_url}]")
     sim = Simulation(state, tools, llm=llm, use_heuristic=use_heuristic, max_turns=args.turns)
     result = sim.run()
-    print("\n=== TRANSCRIPT ===")
-    for line in result["transcript"]:
-        print(line)
+    fmt = getattr(args, "format", "text")
+    out = getattr(args, "out", "")
+    if fmt == "markdown":
+        print(to_markdown(result["transcript"], title=f"dnd-tools demo (seed {seed})"))
+    elif fmt == "html" and out:
+        Path(out).write_text(render_html(result["transcript"], title=f"dnd-tools demo (seed {seed})"))
+        print(f"Rendered lonelog HTML to {out}")
+    else:
+        print("\n=== LONELOG ===")
+        print("```lonelog")
+        for line in result["transcript"]:
+            print(line)
+        print("```")
     print("\n=== RESULT ===")
     print(
         json.dumps(
@@ -95,6 +106,8 @@ def main():
     p_demo.add_argument("--base-url", default="http://127.0.0.1:1234/v1")
     p_demo.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
     p_demo.add_argument("--save", type=str, default="")
+    p_demo.add_argument("--format", choices=["text", "markdown", "html"], default="text")
+    p_demo.add_argument("--out", type=str, default="", help="output file for --format html/markdown")
 
     p_scen = sub.add_parser("gen-scenarios", help="Generate 27 seeded scenarios (3x3x3)")
     p_scen.add_argument("--seed", type=int, default=42)
@@ -106,6 +119,8 @@ def main():
     p_run.add_argument("--base-url", default="http://127.0.0.1:1234/v1")
     p_run.add_argument("--model", default="qwen3.6-35b-a3b-mtp")
     p_run.add_argument("--turns", type=int, default=10)
+    p_run.add_argument("--format", choices=["text", "markdown", "html"], default="text")
+    p_run.add_argument("--out", type=str, default="", help="output file for --format html/markdown")
 
     p_eval = sub.add_parser("eval", help="Evaluate all scenarios in a dir (heuristic or LLM)")
     p_eval.add_argument("scenarios_dir", type=str, help="dir containing scenario_*.json")
@@ -128,7 +143,15 @@ def main():
         llm = LLMClient(base_url=args.base_url, model=args.model) if args.use_llm else None
         sim = Simulation(state, tools, llm=llm, use_heuristic=not args.use_llm, max_turns=args.turns)
         res = sim.run()
-        print("\n".join(res["transcript"]))
+        if args.format == "markdown":
+            print(to_markdown(res["transcript"], title=f"scenario {args.path}"))
+        elif args.format == "html" and args.out:
+            Path(args.out).write_text(render_html(res["transcript"], title=f"scenario {args.path}"))
+            print(f"Rendered lonelog HTML to {args.out}")
+        else:
+            print("```lonelog")
+            print("\n".join(res["transcript"]))
+            print("```")
         print(json.dumps(evaluate_all(res["transcript"], res["tool_trace"]), indent=2))
     elif args.cmd == "eval":
         import glob

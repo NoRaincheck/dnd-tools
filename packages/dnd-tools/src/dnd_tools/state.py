@@ -118,7 +118,8 @@ class GameState:
             if ch.hp <= 0:
                 ch.hp = 0
                 ch.alive = False
-                self.death_log.append(f"{name} dropped to 0 HP (round {self.round})")
+                tag = f"[PC:{name}|HP 0]" if ch.is_player else f"[F:{name}|dead]"
+                self.death_log.append(f"=> {name} drops to 0 HP (Rd{self.round}). {tag}")
                 # remove from map positions but keep dict for tracking
                 # initiative stays but will be skipped
         else:

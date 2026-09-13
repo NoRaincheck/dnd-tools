@@ -46,6 +46,18 @@ class Turn:
     # resolved via rolled / forced / say_yes
     resolved_via: str | None = None
 
+    def lonelog_lines(self, actor: str) -> list[str]:
+        """Render this turn as Lonelog (https://lonelog.org/) lines."""
+        lines = [f"? {self.situation} [{self.position}/{self.effect}]"]
+        if self.picked and self.pick_text:
+            lines.append(f"@({actor}) {self.pick_text}")
+            outcome = (self.roll or {}).get("outcome", "?")
+            ticks = (self.roll or {}).get("ticks", 0)
+            lines.append(f"d: action_roll -> {outcome} (ticks {ticks}, {self.resolved_via})")
+        if self.narration:
+            lines.append(f"=> {self.narration}")
+        return lines
+
 
 @dataclass
 class Game:
@@ -82,6 +94,15 @@ class Game:
             if t.narration:
                 parts.append(t.narration)
         return "\n\n".join(parts) if parts else "(story not yet started)"
+
+    def story_lonelog(self) -> str:
+        """Full session as a Lonelog (https://lonelog.org/) markdown block."""
+        lines = [f"S1 *{self.scene.title} — {self.scene.objective}*"]
+        for t in self.turns:
+            lines.extend(t.lonelog_lines(self.actor))
+        if self.completed:
+            lines += ["[/COMBAT]", f"=> Scene {self.scene.scene_id} resolved. [Thread:{self.scene.scene_id}|Closed]"]
+        return "```lonelog\n" + "\n".join(lines) + "\n```"
 
 
 class AdventureEngine:
@@ -237,7 +258,13 @@ class AdventureEngine:
     def resolve_pick(self, game_id: str, pick: str, auto: bool = False) -> dict[str, Any]:
         game = self.get_game(game_id)
         if game.completed:
-            return {"completed": True, "clock": game.clock(), "story": game.story_text(), "turns": game.turns_view()}
+            return {
+                "completed": True,
+                "clock": game.clock(),
+                "story": game.story_text(),
+                "lonelog": game.story_lonelog(),
+                "turns": game.turns_view(),
+            }
         # normalize pick
         raw = pick.strip().lower()
         alias = {"0": "obvious", "1": "option", "2": "odd", "o": "obvious"}
@@ -259,6 +286,7 @@ class AdventureEngine:
                     "completed": True,
                     "clock": game.clock(),
                     "story": game.story_text(),
+                    "lonelog": game.story_lonelog(),
                     "turns": game.turns_view(),
                 }
             # if we just created, loop again to resolve it
@@ -303,7 +331,8 @@ class AdventureEngine:
             game.fstate.record_effect(
                 "adventure-turn",
                 game.actor,
-                f"Turn {pending.seq}: {pending.beat_title} — {cat} → {roll.get('outcome')} ticks {roll.get('ticks')}",
+                f"@({game.actor}) {cat}: {pick_text} -> {roll.get('outcome')} "
+                f"(ticks {roll.get('ticks')}) [E:{game.scene.scene_id}-progress]",
                 payload={
                     "turn": asdict(pending),
                     "action_roll": roll,
@@ -333,7 +362,8 @@ class AdventureEngine:
                 game.fstate.record_effect(
                     "scene-end",
                     "GM",
-                    f"Scene {game.scene.scene_id} resolved — {game.scene.objective}",
+                    f"=> Scene {game.scene.scene_id} resolved — {game.scene.objective} "
+                    f"[Thread:{game.scene.scene_id}|Closed]",
                     payload={"result": "completed", "clock": game.clock()},
                     scene_id=game.scene.scene_id,
                 )
@@ -344,6 +374,7 @@ class AdventureEngine:
                 "turn": asdict(pending),
                 "clock": game.clock(),
                 "story": game.story_text(),
+                "lonelog": game.story_lonelog(),
                 "turns": game.turns_view(),
             }
 
@@ -355,6 +386,7 @@ class AdventureEngine:
             "next_turn": asdict(nxt) if nxt else None,
             "clock": game.clock(),
             "story": game.story_text(),
+            "lonelog": game.story_lonelog(),
             "turns": game.turns_view(),
         }
 
@@ -379,4 +411,5 @@ class AdventureEngine:
             "turns": game.turns_view(),
             "pending": pending,
             "story": game.story_text(),
+            "lonelog": game.story_lonelog(),
         }

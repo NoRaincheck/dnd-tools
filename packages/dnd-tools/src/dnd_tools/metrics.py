@@ -37,12 +37,15 @@ def parameter_fidelity(trace: list[dict]) -> dict:
 
 
 def acting_quality(transcript: list[str]) -> dict:
-    """Paper's A score: persona density + trait coverage."""
-    # Keep narrative sentences (speaker text, not DM/tool)
-    narrative = [l for l in transcript if not l.startswith("FUNC") and "<End Turn" not in l and "---" not in l]
-    # filter digits/dice
-    filtered = [s for s in narrative if not re.search(r"\d+d\d+", s)]
-    # persona if contains first-person beats or class-flavor keywords
+    """Paper's A score: persona density + trait coverage (lonelog tokens).
+
+    Narrative = `@`/`@(Name)` action lines and `=>` consequences;
+    mechanics (`d:`, `->`, `Rd`, tag-only, scene headers) excluded.
+    """
+    narrative = [l for l in transcript if l.startswith(("@", "=>", "PC (", "N ("))]
+    # filter pure dice lines
+    filtered = [s for s in narrative if not re.search(r"\bd:\s", s)]
+    # persona if first-person beats or class-flavor keywords
     persona_keywords = [
         "I ",
         "valor",
@@ -90,23 +93,33 @@ def acting_quality(transcript: list[str]) -> dict:
 
 
 def tactical_optimality(transcript: list[str]) -> dict:
-    """rt: 1 if attack/spell, 0.5 if only move, else 0. O=avg over windows."""
-    # segment by <End Turn/>
-    windows = []
-    cur = []
+    """rt: 1 if attack/spell, 0.5 if only move, else 0. O=avg over windows.
+
+    Windows are lonelog rounds (`Rd<n>` markers); falls back to whole
+    transcript when no markers exist. Attack windows detect `@` action
+    lines mentioning attack/spell plus `d:`/`-> Hit`/`=>` damage lines.
+    """
+    windows: list[list[str]] = []
+    cur: list[str] = []
     for line in transcript:
-        cur.append(line)
-        if "<End Turn/>" in line:
+        if re.match(r"^Rd\d+\b", line) and cur:
             windows.append(cur)
-            cur = []
+            cur = [line]
+        else:
+            cur.append(line)
+    if cur:
+        windows.append(cur)
     if not windows:
         windows = [transcript]
     rewards = []
     for w in windows:
         text = " ".join(w).lower()
-        if "attack" in text or "spell" in text or "hit" in text or "damage" in text:
+        has_attack = ("@(" in text or text.strip().startswith("@")) and (
+            "attack" in text or "spell" in text or "-> hit" in text or "dmg" in text or "damage" in text
+        )
+        if has_attack:
             rewards.append(1)
-        elif "move" in text:
+        elif "->close" in text or "[far->close]" in text or "advance" in text or "move" in text:
             rewards.append(0.5)
         else:
             rewards.append(0)

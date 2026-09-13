@@ -35,10 +35,20 @@ def cmd_demo(args: argparse.Namespace) -> None:
     ]
     results = sess.run_campaign(encounters, max_turns_per_encounter=args.turns)
     for i, r in enumerate(results, 1):
-        print(f"\n=== ENCOUNTER {i} ===")
+        print(f"\n=== ENCOUNTER {i} (lonelog) ===")
+        print("```lonelog")
         for line in r["transcript"][-10:]:
             print(line)
+        print("```")
         print(json.dumps({k: r[k] for k in ("players", "monsters", "rounds")}, indent=2))
+    fmt = getattr(args, "format", "text")
+    out = getattr(args, "out", "")
+    if fmt == "html" and out:
+        from dnd_tools.lonelog import render_html
+
+        all_lines = [ln for r in results for ln in r["transcript"]]
+        Path(out).write_text(render_html(all_lines, title=f"dnd-campaign demo (seed {args.seed})"))
+        print(f"Rendered lonelog HTML to {out}")
     if args.save:
         Path(args.save).write_text(json.dumps([r["tool_trace"] for r in results], indent=2))
         # also save campaign snapshot
@@ -53,6 +63,8 @@ def main() -> None:
     d.add_argument("--seed", type=int, default=42)
     d.add_argument("--turns", type=int, default=15)
     d.add_argument("--save", type=str, default="")
+    d.add_argument("--format", choices=["text", "html"], default="text")
+    d.add_argument("--out", type=str, default="", help="output file for --format html")
     args = p.parse_args()
     if args.cmd == "demo":
         cmd_demo(args)

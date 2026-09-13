@@ -131,8 +131,13 @@ class FusedSession:
                 )
                 resolved = self.fstate.resolve_choice(choice.choice_id)
                 # keep legacy triple-o effect for backward compat, but also log choice
+                say_yes = f" (Say Yes trivial: {resolved.trivial_reason})" if resolved.trivial else ""
+                self.fstate.campaign.inner.add_transcript(f"? {situation} [{', '.join(trait_list)}]")
                 self.fstate.campaign.inner.add_transcript(
-                    f"[choice {resolved.choice_id}] {pname} {resolved.category} via {resolved.resolved_via}: {resolved.choice_text}{' — Say Yes trivial: ' + resolved.trivial_reason if resolved.trivial else ''}"
+                    f"d: d6={resolved.roll} -> {resolved.category} ({resolved.resolved_via})"
+                )
+                self.fstate.campaign.inner.add_transcript(
+                    f"=> @({pname}) {resolved.choice_text}.{say_yes} [Thread:{scene.scene_id}|Open]"
                 )
 
         sim = Simulation(
@@ -144,7 +149,10 @@ class FusedSession:
         )
         res = sim.run()
         # record scene outcome as effect
-        outcome = f"Scene {scene.scene_id} ended after {res['rounds']} rounds — players {res['players']}"
+        outcome = (
+            f"=> Scene {scene.scene_id} ends after {res['rounds']} rounds. "
+            f"[Thread:{scene.scene_id}|Closed] [E:{scene.scene_id}-progress]"
+        )
         self.fstate.record_effect(
             "scene-end", "GM", outcome, payload={"result": res["players"]}, scene_id=scene.scene_id
         )

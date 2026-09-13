@@ -36,10 +36,11 @@ def summarize_state(cstate: CampaignState) -> dict[str, Any]:
 
 
 def compact_transcript(cstate: CampaignState, keep_last: int = 40) -> str:
-    """Return compact string for LLM prompt (init + tail)."""
+    """Return compact string for LLM prompt (init + tail, lonelog lines)."""
     t = cstate.inner.transcript
     if len(t) <= keep_last + 10:
         return "\n".join(t)
     head = "\n".join(t[:5])
     tail = "\n".join(t[-keep_last:])
-    return head + f"\n... ({len(t) - keep_last - 5} lines omitted) ...\n" + tail
+    omitted = len(t) - keep_last - 5
+    return head + f"\n(note: {omitted} lonelog lines omitted — head 5 + tail {keep_last})\n" + tail

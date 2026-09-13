@@ -253,3 +253,46 @@ class TripleO:
         }
         self.history.append({"event": "question", **out})
         return out
+
+
+_CATEGORY_LONELOG = {"obvious": "Obvious", "option": "Option", "odd": "Odd"}
+
+
+def to_lonelog(result: dict[str, Any]) -> list[str]:
+    """Render a Triple-O result dict as Lonelog (https://lonelog.org/) lines.
+
+    Handles ``resolve`` (``?`` oracle + ``d:`` + ``->`` + ``=>``),
+    ``group_resolve`` (``plans`` key), and ``question`` (``question`` key)
+    result shapes. Pure core notation — no combat block.
+    """
+    cat = _CATEGORY_LONELOG.get(str(result.get("category", "")), str(result.get("category", "")))
+    roll = result.get("roll")
+    rolls = result.get("rolls", [roll])
+    dice = f"d6={roll}" if len(rolls) == 1 else f"2d6={rolls} -> {roll}"
+    if "question" in result:
+        return [
+            f"? {result['question']}",
+            f"d: {dice} -> {cat}",
+            f"=> {result.get('answer', cat)}.",
+        ]
+    if "plans" in result:
+        traits = ", ".join(result.get("traits", []))
+        scope = f" [{traits}]" if traits else ""
+        return [
+            f"? Group dilemma{scope} — obvious vs option vs odd?",
+            f"d: {dice} -> {cat}",
+            f"=> {result.get('choice', '')}.",
+        ]
+    traits = result.get("traits", [])
+    scope = f" [{', '.join(traits)}]" if traits else ""
+    character = result.get("character", "PC")
+    proposal = result.get("proposal", {})
+    opts = " / ".join(proposal.get(k, "") for k in ("obvious", "option", "odd") if proposal.get(k))
+    lines = [f"? {result.get('situation', 'What happens?')}{scope}"]
+    if opts:
+        lines.append(f"(options: {opts})")
+    lines += [
+        f"d: {dice} -> {cat}",
+        f"=> @({character}) {result.get('choice', '')}.",
+    ]
+    return lines
