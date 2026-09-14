@@ -14,7 +14,7 @@ from .scenes import SCENE_TEMPLATES
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="Adventure Webapp — Fused Single-Scene", version="0.1.0")
+app = FastAPI(title="Adventure Webapp — Single Scene", version="0.1.0")
 engine = AdventureEngine()
 
 
@@ -108,6 +108,7 @@ def get_story(game_id: str) -> dict[str, Any]:
     return {
         "story": game.story_text(),
         "lonelog": game.story_lonelog(),
+        "lonelog_lines": game.story_lonelog_lines(),
         "turns": game.turns_view(),
         "clock": game.clock(),
         "completed": game.completed,

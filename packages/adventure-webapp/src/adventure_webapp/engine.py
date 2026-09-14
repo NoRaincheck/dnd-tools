@@ -1,4 +1,4 @@
-"""Engine — single-scene loop on top of FusedState."""
+"""Engine — single-scene adventure loop."""
 
 from __future__ import annotations
 
@@ -95,14 +95,18 @@ class Game:
                 parts.append(t.narration)
         return "\n\n".join(parts) if parts else "(story not yet started)"
 
-    def story_lonelog(self) -> str:
-        """Full session as a Lonelog (https://lonelog.org/) markdown block."""
+    def story_lonelog_lines(self) -> list[str]:
+        """Full session as raw Lonelog lines (no markdown fences)."""
         lines = [f"S1 *{self.scene.title} — {self.scene.objective}*"]
         for t in self.turns:
             lines.extend(t.lonelog_lines(self.actor))
         if self.completed:
             lines += ["[/COMBAT]", f"=> Scene {self.scene.scene_id} resolved. [Thread:{self.scene.scene_id}|Closed]"]
-        return "```lonelog\n" + "\n".join(lines) + "\n```"
+        return lines
+
+    def story_lonelog(self) -> str:
+        """Full session as a Lonelog markdown block."""
+        return "```lonelog\n" + "\n".join(self.story_lonelog_lines()) + "\n```"
 
 
 class AdventureEngine:
@@ -263,6 +267,7 @@ class AdventureEngine:
                 "clock": game.clock(),
                 "story": game.story_text(),
                 "lonelog": game.story_lonelog(),
+                "lonelog_lines": game.story_lonelog_lines(),
                 "turns": game.turns_view(),
             }
         # normalize pick
@@ -287,6 +292,7 @@ class AdventureEngine:
                     "clock": game.clock(),
                     "story": game.story_text(),
                     "lonelog": game.story_lonelog(),
+                    "lonelog_lines": game.story_lonelog_lines(),
                     "turns": game.turns_view(),
                 }
             # if we just created, loop again to resolve it
@@ -375,6 +381,7 @@ class AdventureEngine:
                 "clock": game.clock(),
                 "story": game.story_text(),
                 "lonelog": game.story_lonelog(),
+                "lonelog_lines": game.story_lonelog_lines(),
                 "turns": game.turns_view(),
             }
 
@@ -387,6 +394,7 @@ class AdventureEngine:
             "clock": game.clock(),
             "story": game.story_text(),
             "lonelog": game.story_lonelog(),
+            "lonelog_lines": game.story_lonelog_lines(),
             "turns": game.turns_view(),
         }
 
@@ -412,4 +420,5 @@ class AdventureEngine:
             "pending": pending,
             "story": game.story_text(),
             "lonelog": game.story_lonelog(),
+            "lonelog_lines": game.story_lonelog_lines(),
         }

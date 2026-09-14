@@ -42,3 +42,24 @@ def test_index_serves():
     r = client.get("/")
     assert r.status_code == 200
     assert "Choose Your Adventure" in r.text
+
+
+def test_lonelog_views_and_clean_interface():
+    gid = client.post("/api/games", json={"seed": 42}).json()["game_id"]
+    data = client.get(f"/api/games/{gid}").json()
+    assert data["lonelog_lines"][0].startswith("S1 ")
+    assert data["lonelog"] == "```lonelog\n" + "\n".join(data["lonelog_lines"]) + "\n```"
+    story = client.get(f"/api/games/{gid}/story").json()
+    assert story["lonelog_lines"] == data["lonelog_lines"]
+
+    html = client.get("/").text
+    # story + debug view switchers present
+    assert 'data-storyview="story"' in html
+    assert 'data-storyview="lonelog"' in html
+    assert 'data-storyview="raw"' in html
+    assert 'data-debugview="state"' in html
+    assert 'data-debugview="lonelog"' in html
+    # interface is clean — no FUSE/JSONL jargon in served UI
+    low = html.lower()
+    assert "jsonl" not in low
+    assert "fused" not in low
