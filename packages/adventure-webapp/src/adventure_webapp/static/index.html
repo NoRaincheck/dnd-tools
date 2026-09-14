@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Adventure — Single-Scene Choose-Your-Adventure</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=2">
 </head>
 <body>
 <header>
@@ -50,9 +50,9 @@
   <section id="story-sec" style="display:none">
     <h2>Story <span class="pill" id="story-pill">0 turns</span></h2>
     <div class="view-tabs" role="tablist" aria-label="Story view">
-      <button data-storyview="story" class="active">Story</button>
-      <button data-storyview="lonelog">Lonelog</button>
-      <button data-storyview="raw">Raw</button>
+      <button type="button" data-storyview="story" class="active">Story</button>
+      <button type="button" data-storyview="lonelog">Lonelog</button>
+      <button type="button" data-storyview="raw">Raw</button>
     </div>
     <div class="story-controls" id="story-controls">
       <label class="small"><input type="checkbox" id="toggle-choices" checked> Show choices offered</label>
@@ -77,14 +77,14 @@
   <section id="debug" style="display:none">
     <h2>Debug</h2>
     <div class="view-tabs" role="tablist" aria-label="Debug view">
-      <button data-debugview="state" class="active">State</button>
-      <button data-debugview="lonelog">Lonelog</button>
+      <button type="button" data-debugview="state" class="active">State</button>
+      <button type="button" data-debugview="lonelog">Lonelog</button>
     </div>
     <pre id="debug-pre" class="small" style="max-height:320px;overflow:auto;background:var(--code-bg);border:1px solid var(--border);padding:10px;border-radius:8px"></pre>
     <pre id="debug-lonelog" class="small raw" style="display:none;max-height:320px;overflow:auto;background:var(--code-bg);border:1px solid var(--border);padding:10px;border-radius:8px"></pre>
   </section>
 
 </main>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=2"></script>
 </body>
 </html>

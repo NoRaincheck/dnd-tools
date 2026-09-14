@@ -63,3 +63,5 @@ def test_lonelog_views_and_clean_interface():
     low = html.lower()
     assert "jsonl" not in low
     assert "fused" not in low
+    # versioned static assets so browsers never run stale cached JS
+    assert "/static/app.js?v=" in html
