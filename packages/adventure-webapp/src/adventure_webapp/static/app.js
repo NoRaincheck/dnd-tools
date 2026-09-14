@@ -4,6 +4,8 @@ let gameId = null;
 let autoTimer = null;
 let templates = [];
 let lastGame = null;
+let storyView = "story"; // story | lonelog | raw
+let debugView = "state"; // state | lonelog
 
 async function fetchJSON(url, opts) {
   const res = await fetch(url, {headers: {"Content-Type":"application/json"}, ...opts});
@@ -71,9 +73,8 @@ function renderGame(g){
   $("status-pill").className = "pill " + (g.completed ? "accent" : "");
   $("story-pill").textContent = `${g.turns.length} turns${g.completed?" · completed":""}`;
   renderTurnArea(g);
-  renderStory(g);
-  $("debug").style.display = "";
-  $("debug-pre").textContent = JSON.stringify(g, null, 2);
+  renderStorySection(g);
+  renderDebug(g);
   if(g.completed){
     stopAuto();
     $("turn-area").insertAdjacentHTML("beforeend", `<div class="empty" style="margin-top:12px">Scene resolved — story below is the full arc. Toggle choices/rolls or start a new scene.</div>`);
@@ -165,7 +166,7 @@ function renderStory(g){
 
   // Compact timeline below story
   const tl = $("timeline");
-  tl.innerHTML = `<div class="small muted">Timeline — every beat is traversable (like fused's JSONL). Click a beat to see its payload.</div>` + g.turns.map(t=>{
+  tl.innerHTML = `<div class="small muted">Timeline — every beat played so far.</div>` + g.turns.map(t=>{
     const isPending = !t.picked;
     return `<div class="turn ${isPending?"pending":"done"}" style="padding:8px 10px">
       <div class="small muted">#${t.seq} · ${esc(t.beat_title)} ${isPending?'<span class="pill">pending</span>': outcomePill(t.roll? t.roll.outcome:"")}</div>
@@ -173,6 +174,87 @@ function renderStory(g){
       ${t.narration? `<div class="small" style="margin-top:4px">${esc(t.narration.slice(0,180))}</div>`:""}
     </div>`;
   }).join("");
+}
+
+function lonelogLines(g){
+  if(Array.isArray(g.lonelog_lines)) return g.lonelog_lines;
+  const raw = String(g.lonelog || "");
+  // strip ```lonelog fences when backend only sends the markdown block
+  const m = raw.match(/```lonelog\s*([\s\S]*?)\s*```/);
+  const body = m ? m[1] : raw;
+  return body.split("\n").filter((l,i,arr)=>!(i===arr.length-1 && l===""));
+}
+
+function lonelogRawText(g){
+  return lonelogLines(g).join("\n");
+}
+
+function lonelogClass(line){
+  const s = String(line||"");
+  if(/^S\d+\b/.test(s)) return "scene";
+  if(s.startsWith("?")) return "oracle";
+  if(s.startsWith("@")) return "action";
+  if(s.startsWith("d:")) return "roll";
+  if(s.startsWith("->")) return "consequence";
+  if(s.startsWith("=>")) return "consequence";
+  if(s === "[COMBAT]" || s === "[/COMBAT]") return "combat";
+  return "raw";
+}
+
+function markupTags(escaped){
+  // Light markup: any [BRACKET] chunk becomes a pill; [ITEM]-style
+  // message tags get the accented .item style, same as the story cards.
+  return escaped.replace(/\[([^\[\]]+)\]/g, (full, inner)=>{
+    const up = String(inner).toUpperCase();
+    const isItem = /^(ITEM|PC|F|N|L|E|THREAD|CLOCK|TRACK|TIMER|COMBAT)/.test(up);
+    return `<span class="tag${isItem?" item":""}">[${inner}]</span>`;
+  });
+}
+
+function renderLonelogView(g){
+  const box = $("lonelog-view");
+  const lines = lonelogLines(g);
+  if(!lines.length){
+    box.innerHTML = `<span class="muted">No log yet — start playing and each beat appends here, same as the Story view.</span>`;
+    return;
+  }
+  box.innerHTML = lines.map(l=>`<div class="lonelog-ev ${lonelogClass(l)}">${markupTags(esc(l))}</div>`).join("");
+}
+
+function renderLonelogRaw(g){
+  $("lonelog-raw").textContent = lonelogRawText(g) || "(empty)";
+}
+
+function renderStorySection(g){
+  renderStory(g);
+  renderLonelogView(g);
+  renderLonelogRaw(g);
+  const showStory = storyView === "story";
+  const showLonelog = storyView === "lonelog";
+  const showRaw = storyView === "raw";
+  $("story").style.display = showStory ? "" : "none";
+  $("lonelog-view").style.display = showLonelog ? "" : "none";
+  $("lonelog-raw-wrap").style.display = showRaw ? "" : "none";
+  $("story-controls").style.display = showStory ? "" : "none";
+  $("lonelog-controls").style.display = showLonelog ? "" : "none";
+  document.querySelectorAll("[data-storyview]").forEach(b=>{
+    b.classList.toggle("active", b.dataset.storyview === storyView);
+  });
+}
+
+function renderDebug(g){
+  $("debug").style.display = "";
+  const showState = debugView === "state";
+  $("debug-pre").style.display = showState ? "" : "none";
+  $("debug-lonelog").style.display = showState ? "none" : "";
+  if(showState){
+    $("debug-pre").textContent = JSON.stringify(g, null, 2);
+  } else {
+    $("debug-lonelog").textContent = lonelogRawText(g) || "(empty)";
+  }
+  document.querySelectorAll("[data-debugview]").forEach(b=>{
+    b.classList.toggle("active", b.dataset.debugview === debugView);
+  });
 }
 
 window.pick = async function(cat){
@@ -211,7 +293,7 @@ function scheduleAuto(){
 function stopAuto(){ if(autoTimer){ clearTimeout(autoTimer); autoTimer=null; } }
 
 $("btn-start").addEventListener("click", startScene);
-$("btn-restart").addEventListener("click", ()=>{ stopAuto(); gameId=null; lastGame=null; $("play").style.display="none"; $("story-sec").style.display="none"; $("turn-area").innerHTML=""; $("story").innerHTML=""; });
+$("btn-restart").addEventListener("click", ()=>{ stopAuto(); gameId=null; lastGame=null; $("play").style.display="none"; $("story-sec").style.display="none"; $("debug").style.display="none"; $("turn-area").innerHTML=""; $("story").innerHTML=""; });
 $("auto").addEventListener("change", ()=>{ if($("auto").checked) scheduleAuto(); else stopAuto(); });
 $("auto-delay").addEventListener("change", ()=>{ if($("auto").checked) scheduleAuto(); });
 ["toggle-choices","toggle-chosen","toggle-rolls","show-rolls","btn-hide-choices"].forEach(id=>{
@@ -221,7 +303,7 @@ $("auto-delay").addEventListener("change", ()=>{ if($("auto").checked) scheduleA
     el.addEventListener("click", ()=>{
       document.body.dataset.hideNonChosen = document.body.dataset.hideNonChosen==="1" ? "0":"1";
       el.textContent = document.body.dataset.hideNonChosen==="1" ? "Show all options" : "Hide non-chosen";
-      if(lastGame) renderStory(lastGame);
+      if(lastGame) renderStorySection(lastGame);
     });
   } else {
     el.addEventListener("change", ()=>{ if(lastGame){ renderGame(lastGame); } });
@@ -230,6 +312,26 @@ $("auto-delay").addEventListener("change", ()=>{ if($("auto").checked) scheduleA
 $("btn-copy").addEventListener("click", ()=>{
   const txt = $("story").innerText || "";
   navigator.clipboard.writeText(txt).then(()=>{ $("btn-copy").textContent="Copied"; setTimeout(()=>$("btn-copy").textContent="Copy story",1200); });
+});
+$("btn-copy-lonelog").addEventListener("click", ()=>{
+  const txt = $("lonelog-view").innerText || "";
+  navigator.clipboard.writeText(txt).then(()=>{ $("btn-copy-lonelog").textContent="Copied"; setTimeout(()=>$("btn-copy-lonelog").textContent="Copy lonelog",1200); });
+});
+$("btn-copy-raw").addEventListener("click", ()=>{
+  const txt = $("lonelog-raw").textContent || "";
+  navigator.clipboard.writeText(txt).then(()=>{ $("btn-copy-raw").textContent="Copied"; setTimeout(()=>$("btn-copy-raw").textContent="Copy raw",1200); });
+});
+document.querySelectorAll("[data-storyview]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    storyView = b.dataset.storyview;
+    if(lastGame) renderStorySection(lastGame);
+  });
+});
+document.querySelectorAll("[data-debugview]").forEach(b=>{
+  b.addEventListener("click", ()=>{
+    debugView = b.dataset.debugview;
+    if(lastGame) renderDebug(lastGame);
+  });
 });
 
 // init

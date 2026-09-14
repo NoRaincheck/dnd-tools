@@ -62,3 +62,28 @@ def test_invalid_pick_raises():
         assert False, "should raise"
     except ValueError as e:
         assert "pick must be" in str(e)
+
+
+def test_lonelog_lines_match_markdown_block():
+    eng = AdventureEngine()
+    g = eng.create_game(template_id="veiled-archive", actor="Elaria", seed=42)
+    eng.resolve_pick(g.game_id, "obvious", auto=False)
+    lines = g.story_lonelog_lines()
+    block = g.story_lonelog()
+    assert block.startswith("```lonelog\n") and block.endswith("\n```")
+    assert block == "```lonelog\n" + "\n".join(lines) + "\n```"
+    # raw lines carry the same beats as the HTML story source
+    assert lines[0].startswith("S1 ")
+    assert any(l.startswith("? ") for l in lines)
+    assert any(l.startswith("@(Elaria)") for l in lines)
+    assert any(l.startswith("d: ") for l in lines)
+    assert any(l.startswith("=> ") for l in lines)
+
+
+def test_to_dict_exposes_lonelog_lines():
+    eng = AdventureEngine()
+    g = eng.create_game(seed=5)
+    d = eng.to_dict(g)
+    assert d["lonelog_lines"] == g.story_lonelog_lines()
+    res = eng.resolve_pick(g.game_id, "obvious", auto=False)
+    assert res["lonelog_lines"] == g.story_lonelog_lines()

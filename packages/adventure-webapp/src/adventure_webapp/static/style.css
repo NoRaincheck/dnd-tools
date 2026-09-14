@@ -35,6 +35,21 @@ h2{margin:0 0 10px;font-size:1.08rem;color:var(--accent);border-bottom:2px solid
 .story{white-space:pre-wrap;line-height:1.65}
 .story .choice-ref{padding:1px 5px;border-radius:999px;font-size:.78rem}
 .story .chosen-ref{background:var(--accent);color:#fff}
-.story-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.story-controls{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;align-items:center}
+.view-tabs{display:flex;gap:6px;margin:8px 0}
+.view-tabs button{padding:5px 12px;border:1px solid var(--border);border-radius:999px;background:#fff;color:var(--muted);font-size:.8rem;font-weight:600;cursor:pointer}
+.view-tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.lonelog{display:flex;flex-direction:column;gap:6px}
+.lonelog-ev{padding:6px 10px;border:1px solid var(--border);border-left-width:3px;border-radius:8px;background:#fff;white-space:pre-wrap;line-height:1.55}
+.lonelog-ev.scene{border-left-color:#7c3aed;font-weight:700}
+.lonelog-ev.oracle{border-left-color:#7c3aed}
+.lonelog-ev.action{border-left-color:#1d4ed8}
+.lonelog-ev.roll{border-left-color:#d97706}
+.lonelog-ev.consequence{border-left-color:#059669}
+.lonelog-ev.combat{border-left-color:#6b7280;font-weight:700;color:var(--muted)}
+.lonelog-ev.raw{border-left-color:#e5e7eb}
+.tag{display:inline-block;background:var(--code-bg);border:1px solid var(--border);border-radius:999px;padding:0 7px;margin:0 2px;font-size:.76rem;color:var(--muted)}
+.tag.item{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+pre.raw{white-space:pre-wrap;background:#fcfcff;border:1px solid var(--border);border-radius:8px;padding:12px;min-height:56px;margin:0}
 .muted{color:var(--muted)}.small{font-size:.84rem}
 .empty{padding:14px;text-align:center;color:var(--muted);background:var(--code-bg);border:1px dashed var(--border);border-radius:8px}
